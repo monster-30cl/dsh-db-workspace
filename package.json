@@ -32,8 +32,7 @@
     "build.mjs",
     "install.mjs",
     "README.md",
-    "README.zh.md",
-    "verify.mjs"
+    "README.zh.md"
   ],
   "scripts": {
     "build": "node build.mjs",
@@ -52,8 +51,5 @@
         "@deepseek-ai/dsh-api-remotes"
       ]
     }
-  },
-  "devDependencies": {
-    "esbuild": "0.28.1"
   }
 }

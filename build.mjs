@@ -14,7 +14,6 @@ import { fileURLToPath } from 'node:url'
  * @returns {Promise<{ build: Function }>} The esbuild module namespace.
  */
 async function loadEsbuild() {
-  try { return await import('esbuild') } catch { /* Optional adjacent Harness install. */ }
   const candidates = [
     fileURLToPath(new URL('../zjlHarness/node_modules/.pnpm/', import.meta.url)),
     fileURLToPath(new URL('./node_modules/.pnpm/', import.meta.url)),

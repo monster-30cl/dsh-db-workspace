@@ -51,18 +51,18 @@ test('an unsupported driver is rejected', () => {
 })
 
 test('alias validation mirrors the standalone GUI', () => {
-  assert.equal(normalizeAlias('demo-postgres'), 'demo-postgres')
+  assert.equal(normalizeAlias('tams-test'), 'tams-test')
   assert.throws(() => normalizeAlias('-bad'), /别名需以字母或数字开头/u)
   assert.throws(() => normalizeAlias('has space'), /别名/u)
 })
 
 test('saving a new alias sets it as the default when none exists', () => {
   const next = saveConnection({ default: null, databases: {} }, {
-    name: 'demo-postgres',
+    name: 'tams-test',
     entry: { driver: 'kingbase', dsn: 'postgresql://h/d' },
   })
-  assert.equal(next.default, 'demo-postgres')
-  assert.equal(next.databases['demo-postgres'].driver, 'kingbase')
+  assert.equal(next.default, 'tams-test')
+  assert.equal(next.databases['tams-test'].driver, 'kingbase')
 })
 
 test('renaming keeps the stored secret and moves the default', () => {

@@ -28,11 +28,11 @@ test('a file without databases fails loud', () => {
 test('the file default resolves when no alias is given', () => {
   const path = join(directory, 'default.json')
   writeFileSync(path, JSON.stringify({
-    default: 'demo-postgres',
-    databases: { 'demo-postgres': { driver: 'kingbase', dsn: 'postgresql://u:p@h:5432/d' } },
+    default: 'tams-test',
+    databases: { 'tams-test': { driver: 'kingbase', dsn: 'postgresql://u:p@h:5432/d' } },
   }), 'utf8')
   const resolved = resolveEntry(loadConfig(path), undefined)
-  assert.equal(resolved.name, 'demo-postgres')
+  assert.equal(resolved.name, 'tams-test')
   assert.equal(resolved.entry.driver, 'kingbase')
 })
 
@@ -49,18 +49,18 @@ test('an empty configuration reports that no default exists', () => {
 test('descriptions never carry credentials', () => {
   const entry = {
     driver: 'oceanbase',
-    host: 'db.example.invalid',
+    host: '192.168.88.245',
     port: 2883,
-    user: 'demo_user',
+    user: 'SNS_TG_YXYH',
     password: 'super-secret',
     tenant: 'sns_ob_oracle',
     cluster: 'sns_cluster',
-    database: 'demo_user',
+    database: 'SNS_TG_YXYH',
     mode: 'oracle',
   }
   const description = describeEntry(entry)
   assert.equal(description.hasPassword, true)
-  assert.equal(description.host, 'db.example.invalid')
+  assert.equal(description.host, '192.168.88.245')
   const serialized = JSON.stringify(description)
   assert.equal(serialized.includes('super-secret'), false)
   assert.equal('password' in description, false)
@@ -69,13 +69,13 @@ test('descriptions never carry credentials', () => {
 
 test('environment listing marks the default alias', () => {
   const listing = describeEnvs({
-    default: 'demo-postgres',
+    default: 'tams-test',
     databases: {
-      'demo-postgres': { driver: 'kingbase', dsn: 'postgresql://h/d' },
-      'demo-oceanbase': { driver: 'oceanbase', host: 'h' },
+      'tams-test': { driver: 'kingbase', dsn: 'postgresql://h/d' },
+      'tams-ob': { driver: 'oceanbase', host: 'h' },
     },
   })
-  assert.equal(listing.default, 'demo-postgres')
-  assert.deepEqual(listing.envs.map(item => [item.name, item.isDefault]), [['demo-postgres', true], ['demo-oceanbase', false]])
+  assert.equal(listing.default, 'tams-test')
+  assert.deepEqual(listing.envs.map(item => [item.name, item.isDefault]), [['tams-test', true], ['tams-ob', false]])
   assert.equal(JSON.stringify(listing).includes('postgresql://'), false)
 })

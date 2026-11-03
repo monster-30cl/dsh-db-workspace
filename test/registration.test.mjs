@@ -33,9 +33,9 @@ function stubContext() {
 function fixture(options = {}) {
   const directory = makeDriverDirectory({ pgConnectError: options.pgConnectError })
   const configPath = writeConfig(directory, options.entries ?? {
-    'demo-postgres': { driver: 'kingbase', dsn: 'postgresql://u:hunter2@h:54321/d' },
-    'demo-oceanbase': { driver: 'oceanbase', host: 'h', port: 2883, user: 'u', password: 'secret', mode: 'oracle', database: 'd' },
-  }, 'demo-postgres')
+    'tams-test': { driver: 'kingbase', dsn: 'postgresql://u:hunter2@h:54321/d' },
+    'tams-ob': { driver: 'oceanbase', host: 'h', port: 2883, user: 'u', password: 'secret', mode: 'oracle', database: 'd' },
+  }, 'tams-test')
   const { ctx, tools, commands } = stubContext()
   apply(ctx, { configPath, driverDirectory: directory, testTimeoutMs: 4000 })
   return { tools, commands, configPath, directory }
@@ -69,8 +69,8 @@ test('db_connections lists aliases without credentials', async () => {
   const { tools, configPath } = fixture()
   const value = await tools[0].execute({}, { signal })
   assert.equal(value.configPath, configPath)
-  assert.equal(value.default, 'demo-postgres')
-  assert.deepEqual(value.connections.map(item => item.name), ['demo-postgres', 'demo-oceanbase'])
+  assert.equal(value.default, 'tams-test')
+  assert.deepEqual(value.connections.map(item => item.name), ['tams-test', 'tams-ob'])
   const serialized = JSON.stringify(value)
   assert.equal(serialized.includes('hunter2'), false)
   assert.equal(serialized.includes('secret'), false)
@@ -79,14 +79,14 @@ test('db_connections lists aliases without credentials', async () => {
 
 test('db_test_connection opens and closes one connection', async () => {
   const { tools } = fixture()
-  const value = await tools[1].execute({ env: 'demo-postgres' }, { signal })
-  assert.deepEqual(value, { alias: 'demo-postgres', driver: 'kingbase', ok: true, message: '连接成功' })
+  const value = await tools[1].execute({ env: 'tams-test' }, { signal })
+  assert.deepEqual(value, { alias: 'tams-test', driver: 'kingbase', ok: true, message: '连接成功' })
 })
 
 test('a failing probe surfaces the driver message with secrets redacted', async () => {
   const { tools } = fixture({ pgConnectError: 'connrefused postgresql://u:hunter2@h:54321/d' })
   await assert.rejects(
-    () => tools[1].execute({ env: 'demo-postgres' }, { signal }),
+    () => tools[1].execute({ env: 'tams-test' }, { signal }),
     (error) => {
       assert.match(error.message, /connrefused/u)
       assert.equal(error.message.includes('hunter2'), false)
@@ -110,27 +110,27 @@ test('the db-config command answers list, test and mutations', async () => {
 
   const listed = await command.handler({ rawInput: 'list', signal })
   assert.equal(listed.kind, 'success')
-  assert.deepEqual(JSON.parse(listed.text).connections.map(item => item.name), ['demo-postgres', 'demo-oceanbase'])
+  assert.deepEqual(JSON.parse(listed.text).connections.map(item => item.name), ['tams-test', 'tams-ob'])
 
-  const tested = await command.handler({ rawInput: 'test demo-postgres', signal })
+  const tested = await command.handler({ rawInput: 'test tams-test', signal })
   assert.equal(tested.kind, 'success')
   assert.equal(JSON.parse(tested.text).ok, true)
 
   const saved = await command.handler({
-    rawInput: `save ${JSON.stringify({ name: 'demo-mysql', entry: { driver: 'mysql', dsn: 'mysql://u:p@h:3306/d' } })}`,
+    rawInput: `save ${JSON.stringify({ name: 'tams-mysql', entry: { driver: 'mysql', dsn: 'mysql://u:p@h:3306/d' } })}`,
     signal,
   })
   assert.equal(saved.kind, 'success')
-  assert.deepEqual(JSON.parse(saved.text).connections.map(item => item.name), ['demo-postgres', 'demo-oceanbase', 'demo-mysql'])
-  assert.equal(JSON.parse(readFileSync(configPath, 'utf8')).databases['demo-mysql'].driver, 'mysql')
+  assert.deepEqual(JSON.parse(saved.text).connections.map(item => item.name), ['tams-test', 'tams-ob', 'tams-mysql'])
+  assert.equal(JSON.parse(readFileSync(configPath, 'utf8')).databases['tams-mysql'].driver, 'mysql')
 
-  const marked = await command.handler({ rawInput: 'default demo-oceanbase', signal })
+  const marked = await command.handler({ rawInput: 'default tams-ob', signal })
   assert.equal(marked.kind, 'success')
-  assert.equal(JSON.parse(marked.text).default, 'demo-oceanbase')
+  assert.equal(JSON.parse(marked.text).default, 'tams-ob')
 
-  const removed = await command.handler({ rawInput: 'delete demo-mysql', signal })
+  const removed = await command.handler({ rawInput: 'delete tams-mysql', signal })
   assert.equal(removed.kind, 'success')
-  assert.deepEqual(JSON.parse(removed.text).connections.map(item => item.name), ['demo-postgres', 'demo-oceanbase'])
+  assert.deepEqual(JSON.parse(removed.text).connections.map(item => item.name), ['tams-test', 'tams-ob'])
 })
 
 test('the db-config command tests a draft before it is stored', async () => {

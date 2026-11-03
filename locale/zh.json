@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "数据库连接工作区",
+    "description": "配置 db-config.json 中的数据库连接，并测试每条连接能否连上服务器。"
+  }
+}

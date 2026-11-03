@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Database Workspace",
+    "description": "Configures the connections in db-config.json and tests whether each one reaches its server."
+  }
+}

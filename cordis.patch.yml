@@ -1,0 +1,8 @@
+# Public defaults: connection files and installed drivers stay outside this repository.
+# Defaults: ~/.dsh/db-config.json and its parent directory.
+- insert:
+    - id: db-workspace
+      name: '@local/dsh-db-workspace'
+      config:
+        connectTimeoutMs: 10000
+        testTimeoutMs: 15000

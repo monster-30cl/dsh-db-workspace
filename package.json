@@ -1,0 +1,59 @@
+{
+  "name": "@local/dsh-db-workspace",
+  "version": "0.2.0",
+  "description": "数据库连接工作区：在 JoyinCode 内配置 db-config.json 的连接并测试连通性",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./config": "./config.js",
+    "./store": "./store.js",
+    "./probe": "./probe.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json",
+    "./client": "./client.js"
+  },
+  "files": [
+    "index.js",
+    "config.js",
+    "credentials.js",
+    "reveal.js",
+    "reveal-crypto.js",
+    "reveal-password.ps1",
+    "drivers.js",
+    "probe.js",
+    "store.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "client.js",
+    "client",
+    "build.mjs",
+    "install.mjs",
+    "README.md",
+    "README.zh.md",
+    "verify.mjs"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test",
+    "verify": "node verify.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
+        "@deepseek-ai/dsh-api-remotes"
+      ]
+    }
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1"
+  }
+}

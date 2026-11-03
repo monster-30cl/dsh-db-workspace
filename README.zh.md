@@ -1,108 +1,139 @@
-# dsh-db-workspace（数据库连接工作区）
+# dsh-db-workspace · 数据库连接工作区
 
-JoyinCode 的数据库连接工作区：配置 `db-config.json` 里的连接，并验证每条连接能否连上对应的服务器。
+[English](README.md) · [简体中文](README.zh.md)
 
-它是 `<db-helper-directory>` 的插件形态。插件只负责配置与连通性，不注册任何查询、表结构或 SQL 工具——语句执行仍然交给那个目录里的 `db.js`，两边读同一个文件。
+JoyinCode 右侧栏的数据库连接管理插件。在应用内配置数据库、同时编辑多个连接，并测试连接是否可用。
 
-## 提供什么
+[项目仓库](https://github.com/monster-30cl/dsh-db-workspace) · [下载源码](https://github.com/monster-30cl/dsh-db-workspace/archive/refs/heads/main.zip)
 
-| 入口 | 内容 |
-| --- | --- |
-| 右侧栏 **数据库连接** 页 | 列出、新增、编辑、删除、设默认，以及测试某条连接 |
-| Start 页引导卡片 | 打开同一个页面 |
-| 模型工具 | `db_connections`（列出别名，不含凭据）、`db_test_connection`（建立并关闭一次连接） |
-| 斜杠命令 | `/db-config {list \| test <别名> \| test-draft <json> \| save <json> \| delete <别名> \| default <别名>}` |
+## 功能
 
-页面通过 `ctx.remote.commands.execute` 调用这条命令：独立的客户端 bundle 在没有生成 Typert remote 之前，没有别的宿主调用通道，所以页面上每个动作都会在对话里留下一条命令结果。`recordInput: false` 保证提交的密码不进入会话日志。
+- 按别名、驱动、主机、数据库或用户名搜索连接，支持刷新和设置默认连接。
+- 编辑表单直接展开在对应卡片内，与摘要共用外框；支持同时展开多个连接。
+- 每个表单独立保存草稿，收起和搜索不会丢失未保存内容。保存或取消只关闭当前表单，保存失败保留输入。
+- 支持新增连接、测试已保存连接或未保存草稿，以及带行内确认的删除操作。
+- 操作提醒在面板顶部悬浮显示，控件适配宿主主题，表单按可用宽度切换列数。
+- 用户名直接显示，已保存密码默认遮掩；支持的 Windows 账户可在系统验证通过后临时查看密码。
 
-## 目录结构
+支持 Kingbase、PostgreSQL、MySQL、Oracle，以及 OceanBase 的 MySQL / Oracle 租户模式。插件负责连接配置与连通性测试，不提供 SQL 查询或表结构检查；另行配置的 `db.js` 工具可以共用同一连接文件。
 
-| 路径 | 作用 |
-| --- | --- |
-| `index.js` | Host 插件：`name`/`inject`/`apply`、两个工具、`/db-config` 与其解析 |
-| `config.js` | 读连接文件、按别名取条目、脱敏描述 |
-| `store.js` | 归一化、保存、重命名、删除、设默认；先备份再原子写入 |
-| `drivers.js` | 按 `driverDirectory` 分发驱动（`pg`、`mysql2`、`oracledb`、`oceanbase`） |
-| `probe.js` | 带超时的建立-关闭探测，并做凭据脱敏 |
-| `client/` | 连接管理页面 |
-| `client.js` | 客户端产物（`node build.mjs`） |
-| `cordis.patch.yml` | Bundle patch：加载行 |
-| `test/`、`verify.mjs` | 假驱动离线测试与产物校验 |
-| `install.mjs` | profile 接入脚本 |
+## 安装
 
-## 启用
+需要支持本插件侧栏、语言、远程命令及宿主工具服务的 JoyinCode/Harness 环境，以及 Node.js 和 npm。它是应用插件，不是独立网站。仓库已包含构建好的 `client.js`。
 
-`node install.mjs` 会写进启动器实际使用的 profile：设置了 `DSH_PROFILE_DIR` 时用它（即正在运行的 App 的 profile），否则用 `<DSH_HOME>/profiles/<DSH_PROFILE 或 desktop>`。`--profile-dir`、`--profile`、`--home` 可分别覆盖；`--dry-run` 只打印计划不落盘。脚本会写入 `link:` 依赖、bundle 条目和 `node_modules` 联接点。之后重启 JoyinCode 生效。
+```sh
+git clone https://github.com/monster-30cl/dsh-db-workspace.git
+cd dsh-db-workspace
+node install.mjs --profile-dir "<profile目录>" --dry-run
+node install.mjs --profile-dir "<profile目录>"
+```
 
-桌面版的 profile 在自己的 DSH home 下（`%APPDATA%\@joyin\joyin-worker\dsh\accounts\<账号>\profiles\<profile>`），不是 `~/.dsh`；在 JoyinCode 会话里运行脚本会通过 `DSH_PROFILE_DIR` 自动定位。
+将 `<profile目录>` 替换为应用当前使用的 profile。安装后重启 JoyinCode，从右侧栏或 Start 页引导入口打开**数据库连接**。
 
-部署相关的取值改 `cordis.patch.yml`。
+如果环境已提供 `DSH_PROFILE_DIR`，直接执行 `node install.mjs` 即可使用该 profile。否则脚本按 `<DSH_HOME>/profiles/<DSH_PROFILE 或 desktop>` 定位，home 缺省为 `~/.dsh`。桌面应用可能使用其他 home，请优先指定真实 profile 路径。安装脚本会增加本地 `link:` 依赖、bundle 条目和目录联接点，安装后请保留源码目录。
 
-## 配置项
+## 本机配置
 
-| 字段 | 含义 | 默认 |
+公开版 `cordis.patch.yml` 使用下列宿主默认值。如需覆盖，请在本机配置，不要将个人配置提交至公开仓库。
+
+| 配置项 | 用途 | 默认值 |
 | --- | --- | --- |
-| `configPath` | 读写的连接文件 | `~/.dsh/db-config.json` |
-| `driverDirectory` | 驱动包所在目录 | `configPath` 所在目录 |
-| `connectTimeoutMs` | 驱动的连接超时 | `10000` |
-| `testTimeoutMs` | 探测截止时间，工具自身超时为其加 30 秒 | `15000` |
+| `configPath` | 数据库连接 JSON 文件 | `~/.dsh/db-config.json` |
+| `driverDirectory` | 包含驱动 `node_modules` 的目录 | `configPath` 的父目录 |
+| `connectTimeoutMs` | 驱动连接超时，毫秒 | `10000` |
+| `testTimeoutMs` | 连通性测试截止时间，毫秒 | `15000` |
 
-## 连接文件
+在 `driverDirectory` 中安装需要的驱动：
 
-文件沿用独立脚本的格式，`db.js` 与 `gui-server.js` 仍然可用：
+| 连接类型 | 驱动包 |
+| --- | --- |
+| Kingbase / PostgreSQL | `pg`、`pg-connection-string` |
+| MySQL | `mysql2` |
+| Oracle | `oracledb` |
+| OceanBase | `oceanbase` |
+
+例如：`npm install --prefix "<驱动目录>" pg pg-connection-string`。
+
+以下是**虚构配置示例**，不能直接连接数据库。请在本机替换示例值，或通过页面新增连接。
 
 ```json
 {
   "default": "demo-postgres",
   "databases": {
-    "demo-postgres": { "driver": "kingbase", "dsn": "postgresql://用户:密码@主机:54321/库" },
+    "demo-postgres": {
+      "driver": "postgres",
+      "dsn": "postgresql://demo_user:REPLACE_ME@db.example.invalid:5432/demo"
+    },
     "demo-oceanbase": {
-      "driver": "oceanbase", "host": "db.example.invalid", "port": 2883,
-      "user": "demo_user", "password": "…", "tenant": "…", "cluster": "…",
-      "database": "demo_user", "mode": "oracle"
+      "driver": "oceanbase",
+      "host": "db.example.invalid",
+      "port": 2883,
+      "user": "demo_user",
+      "password": "REPLACE_ME",
+      "tenant": "demo_tenant",
+      "cluster": "demo_cluster",
+      "database": "demo",
+      "mode": "mysql"
     }
   }
 }
 ```
 
-保存时先把旧内容备份为 `<文件>.bak`，写入 `<文件>.tmp` 再改名覆盖，因此 `db.js` 不会读到写了一半的文件。
+编辑已有连接且驱动未改变时，连接串和密码留空表示沿用已保存值。需要替换密码时输入新值并保存。保存会先将旧文件备份为 `<文件>.bak`，写入 `<文件>.tmp`，再重命名替换目标文件。
 
-## 凭据
+## 查看密码
 
-编辑连接时用户名直接显示，已保存的密码以固定遮掩符显示。眼睛按钮通过 Windows 安全中心原生凭据窗口验证当前账户密码，然后在原密码框临时显示数据库密码（20 秒、切换窗口或修改表单后隐藏）。查看值与编辑值分离，不会意外写回。页面生成一次性 RSA-OAEP 密钥，Host 仅在本机验证通过后通过 AES-GCM 加密密码并封装密钥；命令结果仅包含密文，解密私钥仅保留在当前页面内存中。验证进程不接收数据库密码。
+点击已保存密码右侧的眼睛按钮，插件会打开原生 **Windows 安全中心**验证框，验证当前本地 Windows 账户密码，并检查验证账户与运行进程账户一致。
 
-当前仅支持运行插件的同一台 Windows 电脑上的本地账户。空密码账户拒绝查看，提示先在 Windows 登录选项中设置账户密码；域账户、Microsoft 账户、非交互宿主、验证失败或无法确定安全条件时均拒绝。这里使用账户密码，不支持 PIN。新增或已修改但未保存的密码不会通过眼睛按钮显示。
+- 使用账户密码，不是 Windows Hello PIN、指纹或人脸识别。域账户、Microsoft 账户、远程及非交互宿主场景不属于已支持验证的配置。
+- 空密码账户拒绝查看，并提示先在 Windows 登录选项中设置账户密码。无法确定账户状态或任何验证失败也会拒绝查看。
+- 本机验证等待上限为 60 秒，页面另有 70 秒等待保护。验证过程中只禁用眼睛按钮，不锁定整张表单。
+- 验证通过后，密码在原输入框临时显示，最长 20 秒；切换窗口、修改表单、收起或搜索隐藏卡片时自动隐藏。查看值与编辑草稿分离。
+- 本机验证进程不接收数据库密码。命令通道仅传输加密后的密码数据，由当前页面持有的一次性私钥解密。
 
-验证组件仅对自己的 PowerShell 子进程使用 `RemoteSigned`，不修改系统执行策略；组织策略禁止运行时仍拒绝查看，并显示明确提示。`powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy RemoteSigned -File .\reveal-password.ps1 -Check` 可检查组件能否加载，不读取凭据或弹出验证窗口。
+验证组件只为自己的 PowerShell 子进程设置 `RemoteSigned`，不修改系统执行策略；组织策略仍可能禁止运行。以下命令可检查组件加载，不会请求凭据：
 
-页面操作提示统一在面板顶部悬浮显示，不随内容滚动消失；可手动关闭，非错误结果在操作结束后 6 秒收起，错误保留至关闭或下一次操作。
-
-点击连接卡片的“编辑”可在同一卡片内展开表单，支持同时编辑多个连接。收起和搜索不会丢失草稿，保存成功或取消只关闭当前连接的表单，保存失败保留输入。新增表单可与已有连接的编辑区同时打开；每个表单的密码查看状态独立，收起或搜索隐藏时会隐藏明文密码。
-
-验证窗口设置置顶父窗口，使用 `CredUIPromptForWindowsCredentialsW`；60 秒未完成则终止验证进程，页面额外设置 70 秒等待上限。等待验证只禁用眼睛按钮，取消、失败或超时后可重试。更改表单或离开页面会使在途结果失效。
-
-原生凭据中的 `电脑名\用户名` 会拆分为账户名与域；无域的本地用户名使用本机域，UPN 使用空域。验证前后均检查账户 SID 与当前进程账户一致。凭据解析、账户不匹配、Windows 登录失败分别报告；解析和登录失败附数字错误码，不返回原生凭据内容。
-
-客户端永远拿不到密码和连接串：列表里的条目只有 `hasDsn`、`hasPassword` 两个布尔值。编辑时凭据字段留空表示沿用已存值——与独立 GUI 规则一致。探测失败的信息在变成命令结果或工具结果之前会脱敏：连接串与密码替换成 `[已隐藏]`，且先替换较长的连接串，避免密码被替换后连接串的其余部分漏出。
-
-## 校验
-
-```sh
-node --test     # 49 个离线用例：配置模型、写入、驱动分发、探测脱敏、命令动作
-node build.mjs  # 改动页面后重建 client.js
-node verify.mjs # 用打包后的行配置校验 Host 注册与客户端 bundle
+```powershell
+powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy RemoteSigned -File .\reveal-password.ps1 -Check
 ```
 
-测试使用会记录每次调用的桩驱动包，因此可以断言一次探测只建立并关闭一次连接，以及被拒绝的保存不会改动文件（逐字节比对）。
+返回 `ready` 仅表示编译、加载成功，不代表交互验证已通过。错误提示区分凭据解析失败、账户不匹配及 Windows 登录失败，并在可用时附数字错误码。
 
-## 已知限制
+## 命令与工具
 
-- 按设计没有查询能力。需要查数据时，让 agent 在 `<db-helper-directory>` 下执行 `node db.js query "<sql>" --env <别名>`。
-- 页面动作经 `/db-config` 往返，每次都会出现在对话里。
-- 驱动必须装在 `driverDirectory`；缺少时会直接给出 `npm install` 命令。
-- 删除没有二次确认；旧内容仍留在 `<文件>.bak`。
+| 入口 | 用途 |
+| --- | --- |
+| `db_connections` | 列出连接元数据，不返回已保存密码和连接串 |
+| `db_test_connection` | 建立并关闭一次已保存连接，验证是否可用 |
+| `/db-config list` | 获取连接列表 |
+| `/db-config test <别名>` | 测试已保存连接 |
+| `/db-config test-draft <json>` | 测试未保存草稿 |
+| `/db-config save <json>` | 保存连接 |
+| `/db-config default <别名>` | 设置默认连接 |
+| `/db-config delete <别名>` | 删除连接 |
 
+密码查看使用带一次性公钥和随机挑战值的内部 `/db-config reveal <json>` 请求，不是返回明文密码的命令。页面动作通过远程命令通道执行，结果可能出现在对话中。提交的命令输入不记录（`recordInput: false`），连通性测试错误会对已配置的敏感值脱敏。
 
-## Public distribution
+## 开发与校验
 
-This repository contains source code and fictional examples only. No existing database connections are included. The default connection file is `~/.dsh/db-config.json`; configure your local path and drivers privately. Never commit connection files or backups. Run `npm install` before rebuilding with `npm run build`.
+```sh
+npm install
+npm run build
+npm test
+npm run verify
+```
+
+`build` 重新生成 `client.js`；`test` 使用桩驱动运行离线测试；`verify` 使用空连接配置检查插件注册及客户端产物加载。这些检查不验证真实数据库连通性，也不覆盖完整 Windows 凭据弹窗流程。
+
+| 文件 | 用途 |
+| --- | --- |
+| `client/`、`client.js` | React 页面源码及客户端构建产物 |
+| `index.js`、`config.js`、`store.js` | 宿主注册、元数据及连接持久化 |
+| `drivers.js`、`probe.js` | 驱动加载、连通性测试及错误脱敏 |
+| `credentials.js`、`reveal*.js`、`reveal-password.ps1` | 凭据提取、加密传输及本机身份验证 |
+| `cordis.patch.yml`、`install.mjs` | 插件配置及 profile 安装 |
+| `test/`、`verify.mjs` | 离线测试及产物校验 |
+
+## 公开仓库与隐私
+
+公开发布版只包含源码和虚构示例。不要提交真实连接文件、凭据、配置备份或本机部署路径。`.gitignore` 排除了常见连接文件名、环境文件、备份、临时文件和压缩包，但无法识别粘贴进源码或文档中的敏感值，发布前仍需检查差异。`package.json` 中的 `private: true` 用于阻止 npm 发布，不影响 GitHub 仓库公开访问。

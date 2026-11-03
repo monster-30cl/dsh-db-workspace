@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.*
+!.env.example
+db-config.json
+db-config.*.json
+*.bak
+*.tmp
+*.log
+*.tgz
+*.zip
+coverage/
+.DS_Store

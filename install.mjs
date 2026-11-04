@@ -75,4 +75,4 @@ if (changed.length === 0 && !linkMissing) {
   }
   console.log(`INSTALLED ${scope}: ${[...changed, ...(linkMissing ? ['node_modules link'] : [])].join(', ')}`)
 }
-console.log(`重启 JoyinCode 后生效；行配置在 ${join(directory, 'cordis.patch.yml')}`)
+console.log(`重启 DSH 后生效；行配置在 ${join(directory, 'cordis.patch.yml')}`)

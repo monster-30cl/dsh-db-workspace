@@ -2,7 +2,7 @@
 
 [English](README.md) · [简体中文](README.zh.md)
 
-JoyinCode 右侧栏的数据库连接管理插件。在应用内配置数据库、同时编辑多个连接，并测试连接是否可用。
+DSH 右侧栏的数据库连接管理插件。在应用内配置数据库、同时编辑多个连接，并测试连接是否可用。
 
 [项目仓库](https://github.com/monster-30cl/dsh-db-workspace) · [下载源码](https://github.com/monster-30cl/dsh-db-workspace/archive/refs/heads/main.zip)
 
@@ -19,7 +19,7 @@ JoyinCode 右侧栏的数据库连接管理插件。在应用内配置数据库�
 
 ## 安装
 
-需要支持本插件侧栏、语言、远程命令及宿主工具服务的 JoyinCode/Harness 环境，以及 Node.js 和 npm。它是应用插件，不是独立网站。仓库已包含构建好的 `client.js`。
+需要支持本插件侧栏、语言、远程命令及宿主工具服务的 DeepSeek Harness 环境，以及 Node.js 和 npm。它是应用插件，不是独立网站。仓库已包含构建好的 `client.js`。
 
 ```sh
 git clone https://github.com/monster-30cl/dsh-db-workspace.git
@@ -28,7 +28,7 @@ node install.mjs --profile-dir "<profile目录>" --dry-run
 node install.mjs --profile-dir "<profile目录>"
 ```
 
-将 `<profile目录>` 替换为应用当前使用的 profile。安装后重启 JoyinCode，从右侧栏或 Start 页引导入口打开**数据库连接**。
+将 `<profile目录>` 替换为应用当前使用的 profile。安装后重启 DSH，从右侧栏或 Start 页引导入口打开**数据库连接**。
 
 如果环境已提供 `DSH_PROFILE_DIR`，直接执行 `node install.mjs` 即可使用该 profile。否则脚本按 `<DSH_HOME>/profiles/<DSH_PROFILE 或 desktop>` 定位，home 缺省为 `~/.dsh`。桌面应用可能使用其他 home，请优先指定真实 profile 路径。安装脚本会增加本地 `link:` 依赖、bundle 条目和目录联接点，安装后请保留源码目录。
 

@@ -37,7 +37,7 @@ export async function revealPassword(entry, alias, signal, request) {
       unsupported: '无法确认当前账户的本机密码状态（仅支持本地 Windows 账户）。已拒绝查看。',
       cancelled: '已取消查看密码。',
       emptyCredential: 'Windows 未返回账户密码。请使用“密码”登录方式，不能使用 PIN 或指纹。',
-      identityMismatch: '验证窗口选择的账户与当前运行 JoyinCode 的 Windows 账户不一致，已拒绝查看。',
+      identityMismatch: '验证窗口选择的账户与当前运行 DSH 的 Windows 账户不一致，已拒绝查看。',
       unavailable: '无法完成本机安全验证，已拒绝查看。',
       policyBlocked: '系统脚本策略阻止了本机验证组件，请联系管理员允许此组件运行；已拒绝查看。',
       compileFailed: 'Windows 本机验证组件加载失败，已拒绝查看。',

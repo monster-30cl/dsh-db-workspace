@@ -57,10 +57,10 @@ public static class DbPasswordViewer {
       if (blankError != 1326) return "accountCheckFailed";
       // A visible topmost owner keeps the Windows dialog above the desktop app.
       using (var owner = new Form()) {
-      owner.Text = "JoyinCode"; owner.Width = 1; owner.Height = 1;
+      owner.Text = "DSH"; owner.Width = 1; owner.Height = 1;
       owner.StartPosition = FormStartPosition.CenterScreen; owner.ShowInTaskbar = false; owner.TopMost = true;
       owner.Show(); owner.Activate(); SetForegroundWindow(owner.Handle);
-      var ui = new UI { size = Marshal.SizeOf(typeof(UI)), parent = owner.Handle, caption = "JoyinCode", message = "JoyinCode 正在尝试显示数据库密码，请输入您的 Windows 账户密码以允许此操作。" };
+      var ui = new UI { size = Marshal.SizeOf(typeof(UI)), parent = owner.Handle, caption = "DSH", message = "DSH 正在尝试显示数据库密码，请输入您的 Windows 账户密码以允许此操作。" };
       StringBuilder username = null, domain = null, password = null;
       uint package = 0, outputSize;
       IntPtr output = IntPtr.Zero;

@@ -2,7 +2,7 @@
 
 [English](README.md) · [简体中文](README.zh.md)
 
-A database connection manager for JoyinCode's right sidebar. Configure connections, edit multiple connections in the list, and test availability without leaving the app.
+A database connection manager for DSH's right sidebar. Configure connections, edit multiple connections in the list, and test availability without leaving the app.
 
 [Repository](https://github.com/monster-30cl/dsh-db-workspace) · [Download source](https://github.com/monster-30cl/dsh-db-workspace/archive/refs/heads/main.zip)
 
@@ -19,7 +19,7 @@ Supports Kingbase, PostgreSQL, MySQL, Oracle, and OceanBase (MySQL or Oracle ten
 
 ## Installation
 
-Requires a compatible JoyinCode/Harness host with sidebar, locale, remote command, and tool services, plus Node.js and npm. This is an application plugin, not a standalone website. The built `client.js` is included.
+Requires a compatible DeepSeek Harness host with sidebar, locale, remote command, and tool services, plus Node.js and npm. This is an application plugin, not a standalone website. The built `client.js` is included.
 
 ```sh
 git clone https://github.com/monster-30cl/dsh-db-workspace.git
@@ -28,7 +28,7 @@ node install.mjs --profile-dir "<profile-directory>" --dry-run
 node install.mjs --profile-dir "<profile-directory>"
 ```
 
-Replace `<profile-directory>` with the app's active profile. Restart JoyinCode and open **Database connections** from the right sidebar or Start page guide.
+Replace `<profile-directory>` with the app's active profile. Restart DSH and open **Database connections** from the right sidebar or Start page guide.
 
 If the environment supplies `DSH_PROFILE_DIR`, `node install.mjs` uses it automatically. Otherwise the script resolves `<DSH_HOME>/profiles/<DSH_PROFILE or desktop>`, with `~/.dsh` as the fallback home. The desktop app may use a different home; prefer its actual profile path. The installer adds a local `link:` dependency, a bundle entry, and a directory junction. Keep the checkout in place afterwards.
 

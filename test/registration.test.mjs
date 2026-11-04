@@ -14,6 +14,7 @@ function stubContext() {
   const tools = []
   const commands = []
   const ctx = {
+    systemPrompt: { section() { return () => {} } },
     tools: { register(definition) { tools.push(definition); return () => {} } },
     commands: { register(definition) { commands.push(definition); return () => {} } },
     effect(body) {
@@ -43,17 +44,17 @@ function fixture(options = {}) {
 
 const signal = new AbortController().signal
 
-test('registers two connection tools and one command', () => {
+test('registers connection/query/schema tools and one command', () => {
   const { tools, commands } = fixture()
-  assert.deepEqual(tools.map(tool => tool.name), ['db_connections', 'db_test_connection'])
+  assert.deepEqual(tools.map(tool => tool.name), ['db_connections', 'db_test_connection', 'db_query', 'db_schema', 'db_execute'])
   assert.deepEqual(commands.map(command => command.name), ['db-config'])
   assert.equal(commands[0].recordInput, false, 'the save payload must not enter the session log')
 })
 
-test('no query tool is registered', () => {
+test('no unapproved generic write tool is registered', () => {
   const { tools } = fixture()
   const names = tools.map(tool => tool.name).join(',')
-  assert.equal(/query|table|schema|sql/u.test(names), false)
+  assert.equal(/^db_write$/u.test(names), false)
 })
 
 test('defaults resolve to the DSH home and the connection file directory', () => {

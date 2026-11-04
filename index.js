@@ -2,9 +2,8 @@
  * Database workspace: connection configuration and connectivity for the
  * `db-config.json` file used by the standalone `db.js` helper.
  *
- * This plugin owns no query path. It reads aliases, tests one connection, and
- * serves the connection the agent's `db.js` invocations use; statement
- * execution stays with that helper.
+ * Owns connection metadata, probes, read-only queries and schema inspection.
+ * The legacy db.js read-only keyword boundary is preserved.
  *
  * Namespace plugin (named exports, no default export).
  * @module @local/dsh-db-workspace
@@ -13,15 +12,17 @@
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { describeEnvs, loadConfig, resolveEntry } from './config.js'
-import { probeConnection } from './probe.js'
 import { revealPassword } from './reveal.js'
+import { runDatabase } from './database-process.js'
+import { approveSql } from './approval.js'
+import { DATABASE_POLICY } from './policy.js'
 import { deleteConnection, markDefault, normalizeEntry, saveConnection, writeConfigFile } from './store.js'
 
 /** Loader row id. */
 export const name = 'db-workspace'
 
 /** Services this plugin contributes to. */
-export const inject = ['tools', 'commands']
+export const inject = ['tools', 'commands', 'systemPrompt']
 
 /** Deployment defaults for the connection file and the probe deadlines. */
 export const DEFAULTS = Object.freeze({
@@ -69,7 +70,7 @@ function integerField(raw, key, fallback, min, max) {
 /**
  * Validate the row configuration once at activation.
  * @param {unknown} raw Loader row configuration.
- * @returns {{ configPath: string, driverDirectory: string, connectTimeoutMs: number, testTimeoutMs: number }} Resolved configuration.
+ * @returns {{ configPath: string, driverDirectory: string, connectTimeoutMs: number, testTimeoutMs: number, queryTimeoutMs: number }} Resolved configuration.
  * @throws {TypeError} When a field is invalid.
  */
 export function resolveConfig(raw) {
@@ -77,10 +78,13 @@ export function resolveConfig(raw) {
     throw new TypeError('db-workspace: config 必须是对象')
   }
   const config = raw ?? {}
-  const configPath = resolve(stringField(config, 'configPath', join(homedir(), '.dsh', 'db-config.json')))
+  const localHome = process.env.DSH_PROFILE_DIR || process.env.DSH_HOME || join(homedir(), '.dsh')
+  const configPath = resolve(stringField(config, 'configPath', process.env.DSH_DB_CONFIG_PATH || join(localHome, 'db-config.json')))
   return {
     configPath,
-    driverDirectory: resolve(stringField(config, 'driverDirectory', dirname(configPath))),
+    driverDirectory: resolve(stringField(config, 'driverDirectory', process.env.DSH_DB_DRIVER_DIRECTORY || dirname(configPath))),
+    queryTimeoutMs: integerField(config, 'queryTimeoutMs', 30_000, 1_000, 480_000),
+    connectionMaxLifetimeMs: integerField(config, 'connectionMaxLifetimeMs', 480_000, 1_000, 480_000),
     connectTimeoutMs: integerField(config, 'connectTimeoutMs', DEFAULTS.connectTimeoutMs, 1_000, 600_000),
     testTimeoutMs: integerField(config, 'testTimeoutMs', DEFAULTS.testTimeoutMs, 1_000, 600_000),
   }
@@ -105,7 +109,7 @@ const ENV_DESCRIPTION = '配置里的库别名；省略时使用配置文件的 
  */
 export function apply(ctx, rawConfig) {
   const config = resolveConfig(rawConfig)
-  const driverOptions = { driverDirectory: config.driverDirectory, connectTimeoutMs: config.connectTimeoutMs }
+  const driverOptions = { driverDirectory: config.driverDirectory, connectTimeoutMs: config.connectTimeoutMs, queryTimeoutMs: config.queryTimeoutMs, testTimeoutMs: config.testTimeoutMs, connectionMaxLifetimeMs: config.connectionMaxLifetimeMs }
 
   /**
    * Describe the connection file without credentials.
@@ -124,7 +128,7 @@ export function apply(ctx, rawConfig) {
    */
   const probeAlias = async (alias, signal) => {
     const resolved = resolveEntry(loadConfig(config.configPath), alias)
-    const outcome = await probeConnection(resolved.entry, driverOptions, signal, config.testTimeoutMs)
+    const outcome = await runDatabase(resolved.entry, driverOptions, { kind: 'probe' }, signal)
     return { alias: resolved.name, driver: outcome.driver, ok: true, message: outcome.message }
   }
 
@@ -139,16 +143,17 @@ export function apply(ctx, rawConfig) {
       ? loadConfig(config.configPath).databases[entry.name] ?? null
       : null
     const normalized = normalizeEntry(entry, previous)
-    const outcome = await probeConnection(normalized, driverOptions, signal, config.testTimeoutMs)
+    const outcome = await runDatabase(normalized, driverOptions, { kind: 'probe' }, signal)
     return { alias: typeof entry.name === 'string' ? entry.name : '', driver: outcome.driver, ok: true, message: outcome.message }
   }
 
   const disposers = [
+    ctx.systemPrompt.section({ name: 'db-workspace:database-policy', order: 500, text: DATABASE_POLICY }),
     ctx.tools.register({
       name: 'db_connections',
       description:
         'List the configured database connections with driver, host, user, and default marker. '
-        + 'Passwords and connection strings are never returned; use them from the connection file through the db.js helper.',
+        + 'Passwords and connection strings are never returned. Use db_query and db_schema for database reads.',
       parameters: {},
       output: {
         schema: {
@@ -192,6 +197,37 @@ export function apply(ctx, rawConfig) {
       timeoutMs: config.testTimeoutMs + 30_000,
       async execute(args, exec) {
         return probeAlias(args.env, exec.signal)
+      },
+    }),
+    ...['query', 'schema'].map(kind => ctx.tools.register({
+      name: `db_${kind}`,
+      description: kind === 'query'
+        ? 'Execute one read-only SQL statement using a configured connection alias and a read-only transaction. SQL words are inspected without rejecting keyword fragments in field names. Writes and analysis require db_execute and user approval. Returns at most 1000 rows.'
+        : 'Inspect database structure using a configured connection alias. Omit table to list tables; provide table to list columns. Optional schema selects the namespace. No arbitrary SQL is accepted.',
+      parameters: {
+        env: { type: 'string', description: ENV_DESCRIPTION },
+        limit: { type: 'integer', minimum: 1, maximum: 1000, description: '最多返回行数，默认 100；仅限制输出，建议 SQL 本身也限制结果量。' },
+        ...(kind === 'query' ? { sql: { type: 'string', required: true, description: '单条只读 SQL。字段名可包含 update/create 等片段；写入或分析语句须改用 db_execute 逐次申请用户批准。' } }
+          : { table: { type: 'string', description: '表名；省略时列出表。' }, schema: { type: 'string', description: 'schema 或 Oracle owner；默认使用连接当前命名空间。' } }),
+      },
+      output: { schema: { type: 'object', properties: { alias: { type: 'string' }, driver: { type: 'string' }, rows: { type: 'array' }, returnedRows: { type: 'integer' }, truncated: { type: 'boolean' } }, required: ['alias', 'driver', 'rows', 'returnedRows', 'truncated'], additionalProperties: false }, render: (_args, value) => renderJson(value) },
+      timeoutMs: config.queryTimeoutMs + 5000,
+      async execute(args, exec) {
+        const resolved = resolveEntry(loadConfig(config.configPath), args.env)
+        return { alias: resolved.name, ...await runDatabase(resolved.entry, driverOptions, { ...args, kind }, exec.signal) }
+      },
+    })),
+    ctx.tools.register({
+      name: 'db_execute',
+      description: 'Execute exactly one DML/DDL or analysis/maintenance statement ONLY after the host asks the user and receives an allowed-once approval for this exact SQL and connection. Denial terminates before connecting. Analysis may consume CPU/IO and locks. Never pass an approved flag or bypass a rejection.',
+      parameters: { env: { type: 'string', description: ENV_DESCRIPTION }, sql: { type: 'string', required: true, description: '待批准执行的单条 SQL 原文。' }, limit: { type: 'integer', minimum: 1, maximum: 1000, description: '最多返回行数，默认 100。' } },
+      output: { schema: { type: 'object', properties: { alias: { type: 'string' }, driver: { type: 'string' }, rows: { type: 'array' }, returnedRows: { type: 'integer' }, truncated: { type: 'boolean' }, affectedRows: { type: 'integer' } }, required: ['alias', 'driver', 'rows', 'returnedRows', 'truncated'], additionalProperties: false }, render: (_args, value) => renderJson(value) },
+      async execute(args, exec) {
+        if (args.limit !== undefined && (!Number.isSafeInteger(args.limit) || args.limit < 1 || args.limit > 1000)) throw new Error('limit 必须为 1 到 1000 的整数')
+        const resolved = resolveEntry(loadConfig(config.configPath), args.env)
+        const entry = structuredClone(resolved.entry)
+        const plan = await approveSql(ctx, exec, resolved.name, args.sql)
+        return { alias: resolved.name, ...await runDatabase(entry, driverOptions, { kind: 'execute', sql: plan.sql, limit: args.limit }, exec.signal) }
       },
     }),
     ctx.commands.register({

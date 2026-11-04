@@ -17,7 +17,7 @@ function pgStub(connectError) {
     ? "async connect() { state.calls.push({ kind: 'connect' }) }"
     : `async connect() { throw new Error(${JSON.stringify(connectError)}) }`
   return `
-const state = globalThis.__dshDbFake
+const state = globalThis.__dshDbFake ?? { calls: [] }
 module.exports = {
   Client: class {
     constructor(config) { this.config = config; state.calls.push({ kind: 'config', config }) }
@@ -34,7 +34,7 @@ module.exports = { parse: dsn => ({ user: 'u', password: 'p', host: 'h', port: 5
 `
 
 const MYSQL_STUB = `
-const state = globalThis.__dshDbFake
+const state = globalThis.__dshDbFake ?? { calls: [] }
 module.exports = {
   createConnection: async (config) => {
     state.calls.push({ kind: 'mysql-connect', config })
@@ -47,7 +47,7 @@ module.exports = {
 `
 
 const ORACLE_STUB = `
-const state = globalThis.__dshDbFake
+const state = globalThis.__dshDbFake ?? { calls: [] }
 module.exports = {
   OUT_FORMAT_OBJECT: 4002,
   getConnection: async (config) => {
@@ -61,7 +61,7 @@ module.exports = {
 `
 
 const OCEANBASE_STUB = `
-const state = globalThis.__dshDbFake
+const state = globalThis.__dshDbFake ?? { calls: [] }
 module.exports = {
   createConnection: async (config) => {
     state.calls.push({ kind: 'oceanbase-connect', config })

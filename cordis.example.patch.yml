@@ -1,0 +1,11 @@
+# Portable defaults. Connection files and driver packages stay on this device.
+# configPath defaults to DSH_DB_CONFIG_PATH or the active profile/home.
+# driverDirectory defaults to DSH_DB_DRIVER_DIRECTORY or configPath's parent.
+- insert:
+    - id: db-workspace
+      name: '@local/dsh-db-workspace'
+      config:
+        connectTimeoutMs: 10000
+        testTimeoutMs: 15000
+        queryTimeoutMs: 30000
+        connectionMaxLifetimeMs: 480000

@@ -15,7 +15,7 @@ A database connection manager for JoyinCode's right sidebar. Configure connectio
 - View notifications at the top of the panel, with theme-aware controls and responsive form columns.
 - Display usernames and mask stored passwords. On supported Windows accounts, reveal a password after native account-password verification.
 
-Supports Kingbase, PostgreSQL, MySQL, Oracle, and OceanBase (MySQL or Oracle tenant mode). The plugin manages configuration and connection tests; it does not provide SQL queries or schema inspection. A separately configured `db.js` helper can share the same connection file.
+Supports Kingbase, PostgreSQL, MySQL, Oracle, and OceanBase (MySQL or Oracle tenant mode). The plugin also provides read-only SQL queries and schema inspection. It inspects SQL words instead of keyword substrings in field names. Reads use read-only transactions; writes, DDL and maintenance require one-time user approval through `db_execute`.
 
 ## Installation
 
@@ -38,7 +38,7 @@ The public `cordis.patch.yml` uses the host defaults below. Keep personal config
 
 | Field | Purpose | Default |
 | --- | --- | --- |
-| `configPath` | Connection JSON file | `~/.dsh/db-config.json` |
+| `configPath` | Connection JSON file | `DSH_DB_CONFIG_PATH`, then current profile/home (see below) |
 | `driverDirectory` | Directory containing driver `node_modules` | Parent of `configPath` |
 | `connectTimeoutMs` | Driver connection timeout, ms | `10000` |
 | `testTimeoutMs` | Connection probe deadline, ms | `15000` |
@@ -81,6 +81,22 @@ This is a **fictional example**, not a working configuration. Replace the values
 
 For an existing connection with an unchanged driver, blank connection-string and password inputs retain stored values. To replace a password, enter a new one and save. Saves back up the previous file as `<file>.bak`, write `<file>.tmp`, and rename it into place.
 
+## Default database tools on every device
+
+Enabling the plugin registers its own system-prompt section: use db_connections first to resolve aliases, then db_test_connection, db_query, db_schema or the approval-gated db_execute. Tool errors and blocked queries must be reported without automatically falling back to terminal scripts. This is model guidance, not a sandbox restriction on other tools.
+
+Explicit plugin configuration takes precedence. Otherwise configPath uses DSH_DB_CONFIG_PATH, then DSH_PROFILE_DIR/db-config.json, DSH_HOME/db-config.json, and finally ~/.dsh/db-config.json. Drivers use explicit driverDirectory, then DSH_DB_DRIVER_DIRECTORY, then the connection file parent. Existing explicit paths are preserved; nothing is migrated or uploaded. On another device install the plugin in the active profile, install drivers there, add local connections in the panel, and select a default alias. Restart the app to load the tools and policy.
+
+queryTimeoutMs defaults to 30000 (1000–480000). db_query accepts env, sql and limit (default 100, maximum 1000). db_schema accepts env, optional table/schema and limit; omit table to list tables, provide it to list columns (not a complete DDL/index export). Schema filters use driver-specific bound parameters. Returned row limits only bound output, not server work: add an appropriate SQL row limit. Operations run in dedicated database processes. Completion, cancellation or timeout terminates the process before the tool returns, closing its sockets. Read-only credentials are recommended because database functions and external effects are not a SQL sandbox. UPDATE_TIME and CREATE_USER are valid field names. Multiple statements, executable comments and unsupported procedural calls are rejected; never bypass a rejection.
+
+## Approval and connection lifetime
+
+SQL policy is implemented in sql-policy.js; guardQuery in query.js is the read-only entry. Word boundaries, comments and quoted values are inspected without changing SQL text. db_query cannot execute DML, DDL or analysis. Use db_execute to request host approval for the exact connection and single SQL statement. Missing approval UI, rejection or cancellation terminates before connection creation. AI-supplied approval flags are not accepted. No write approval is persisted or reused.
+
+EXPLAIN (including ANALYZE), ANALYZE, VACUUM, OPTIMIZE and REINDEX also require approval and warn about CPU/IO, scans, locks and possible impact on other users. EXPLAIN ANALYZE actually executes its statement. DDL can implicitly commit; it is not generally rollback-safe. After timeout or disconnection, write outcomes may be uncertain: verify before any retry.
+
+Connections are opened per operation and closed immediately after use; they are not retained for 8 minutes. connectionMaxLifetimeMs defaults to 480000 ms and can only be reduced (minimum 1000). The effective deadline is the smaller of the operation timeout and this lifetime. A dedicated child process is terminated on deadline or cancellation, including when driver close hangs. Approval waits do not hold database connections. Local explicit connection settings remain unchanged.
+
 ## Password viewing
 
 Click the eye button beside a stored password. A native **Windows Security** dialog requests the current local Windows account password. The plugin checks that the authenticated account matches the running process.
@@ -105,6 +121,9 @@ powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy RemoteSigned -Fi
 | --- | --- |
 | `db_connections` | List metadata without stored passwords or connection strings |
 | `db_test_connection` | Open and close one saved connection to test availability |
+| `db_query` | Read-only SQL with env, sql and optional limit |
+| `db_execute` | One-time user approval for writes, DDL, analysis or maintenance |
+| `db_schema` | List tables or inspect columns with env, table, schema and limit |
 | `/db-config list` | Refresh the listing |
 | `/db-config test <alias>` | Test a saved connection |
 | `/db-config test-draft <json>` | Test an unsaved draft |

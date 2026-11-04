@@ -71,6 +71,7 @@ function postgresOptions(entry, require, limits) {
     ...(typeof entry.user === 'string' && entry.user !== '' ? { user: entry.user } : {}),
     ...(typeof entry.password === 'string' && entry.password !== '' ? { password: entry.password } : {}),
     connectionTimeoutMillis: limits.connectTimeoutMs,
+    ...(limits.queryTimeoutMs ? { statement_timeout: limits.queryTimeoutMs, query_timeout: limits.queryTimeoutMs } : {}),
   }
 }
 
@@ -209,6 +210,7 @@ export function createClient(entry, options) {
           ...parseOracleDsn(entry),
           connectTimeout: options.connectTimeoutMs,
         })
+        if (options.queryTimeoutMs) connection.callTimeout = options.queryTimeoutMs
         return {
           async query(sql, params) {
             if (params !== undefined) return connection.execute(sql, params)

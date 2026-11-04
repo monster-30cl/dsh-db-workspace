@@ -23,8 +23,11 @@
     "reveal-password.ps1",
     "drivers.js",
     "probe.js",
+    "query.js",
+    "policy.js",
     "store.js",
     "cordis.patch.yml",
+    "cordis.example.patch.yml",
     "locale/*.json",
     "icon.svg",
     "client.js",
@@ -32,12 +35,20 @@
     "build.mjs",
     "install.mjs",
     "README.md",
-    "README.zh.md"
+    "README.zh.md",
+    "verify.mjs",
+    "sql-policy.js",
+    "approval.js",
+    "database-process.js",
+    "database-worker.js"
   ],
   "scripts": {
     "build": "node build.mjs",
     "test": "node --test",
     "verify": "node verify.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1"
   },
   "dsh": {
     "bundle": {

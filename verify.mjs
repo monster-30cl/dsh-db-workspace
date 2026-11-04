@@ -22,31 +22,28 @@ for (const path of ['index.js', 'client.js', 'cordis.patch.yml', 'icon.svg']) {
 
 const patch = readFileSync(join(directory, 'cordis.patch.yml'), 'utf8')
 assert.ok(patch.includes(`name: '${manifest.name}'`), 'patch row names this package')
-const configPath = /configPath:\s*(\S+)/u.exec(patch)?.[1]
-const driverDirectory = /driverDirectory:\s*(\S+)/u.exec(patch)?.[1]
-assert.ok(configPath !== undefined, 'patch row sets configPath')
-assert.ok(driverDirectory !== undefined, 'patch row sets driverDirectory')
-assert.equal(existsSync(configPath), true, `connection file exists: ${configPath}`)
-assert.equal(existsSync(driverDirectory), true, `driver directory exists: ${driverDirectory}`)
+const configPath = join(directory, '.verification-empty-config.json')
+const driverDirectory = directory
 
 const host = await import('./index.js')
 assert.equal(host.name, 'db-workspace')
-assert.deepEqual([...host.inject].sort(), ['commands', 'tools'])
+assert.deepEqual([...host.inject].sort(), ['commands', 'systemPrompt', 'tools'])
 
 const tools = []
 const commands = []
 host.apply({
+  systemPrompt: { section(definition) { assert.ok(definition.text.includes('db_query')); return () => {} } },
   tools: { register(definition) { tools.push(definition); return () => {} } },
   commands: { register(definition) { commands.push(definition); return () => {} } },
   effect(body) { return body() },
 }, { configPath, driverDirectory })
 
-assert.deepEqual(tools.map(tool => tool.name), ['db_connections', 'db_test_connection'])
+assert.deepEqual(tools.map(tool => tool.name), ['db_connections', 'db_test_connection', 'db_query', 'db_schema', 'db_execute'])
 assert.deepEqual(commands.map(command => command.name), ['db-config'])
 assert.equal(commands[0].recordInput, false, 'the save payload must not enter the session log')
 
 const listing = await tools[0].execute({}, { signal: new AbortController().signal })
-assert.ok(listing.connections.length > 0, 'the connection file names at least one alias')
+assert.deepEqual(listing.connections, [], 'verification never reads a real connection file')
 const serialized = JSON.stringify(listing)
 assert.equal(/password\s*:/u.test(serialized), false, 'no password field is exposed')
 assert.equal(/postgresql:\/\/|mysql:\/\/|oracle:\/\//u.test(serialized), false, 'no connection string is exposed')

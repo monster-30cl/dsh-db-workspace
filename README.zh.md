@@ -15,7 +15,7 @@ JoyinCode 右侧栏的数据库连接管理插件。在应用内配置数据库�
 - 操作提醒在面板顶部悬浮显示，控件适配宿主主题，表单按可用宽度切换列数。
 - 用户名直接显示，已保存密码默认遮掩；支持的 Windows 账户可在系统验证通过后临时查看密码。
 
-支持 Kingbase、PostgreSQL、MySQL、Oracle，以及 OceanBase 的 MySQL / Oracle 租户模式。插件负责连接配置与连通性测试，不提供 SQL 查询或表结构检查；另行配置的 `db.js` 工具可以共用同一连接文件。
+支持 Kingbase、PostgreSQL、MySQL、Oracle，以及 OceanBase 的 MySQL / Oracle 租户模式。插件还提供只读 SQL 查询与表结构检查，按 SQL 词法区分字段名和操作关键字，在只读事务中执行读取；写入、DDL 和维护操作通过 `db_execute` 获取逐次用户批准。
 
 ## 安装
 
@@ -38,7 +38,7 @@ node install.mjs --profile-dir "<profile目录>"
 
 | 配置项 | 用途 | 默认值 |
 | --- | --- | --- |
-| `configPath` | 数据库连接 JSON 文件 | `~/.dsh/db-config.json` |
+| `configPath` | 数据库连接 JSON 文件 | `DSH_DB_CONFIG_PATH` 或当前 profile/home，见下文 |
 | `driverDirectory` | 包含驱动 `node_modules` 的目录 | `configPath` 的父目录 |
 | `connectTimeoutMs` | 驱动连接超时，毫秒 | `10000` |
 | `testTimeoutMs` | 连通性测试截止时间，毫秒 | `15000` |
@@ -81,6 +81,22 @@ node install.mjs --profile-dir "<profile目录>"
 
 编辑已有连接且驱动未改变时，连接串和密码留空表示沿用已保存值。需要替换密码时输入新值并保存。保存会先将旧文件备份为 `<文件>.bak`，写入 `<文件>.tmp`，再重命名替换目标文件。
 
+## 跨设备默认使用插件工具
+
+启用插件时自动注册系统提示词：先用 db_connections 确认连接别名，再使用 db_test_connection、db_query、db_schema 或需要批准的 db_execute。工具失败或 SQL 被拦截时报告原因，不自动回退到终端脚本。这是模型使用规则，不是限制其他工具的沙箱。
+
+显式插件配置优先。未配置时，configPath 依次使用 DSH_DB_CONFIG_PATH、DSH_PROFILE_DIR/db-config.json、DSH_HOME/db-config.json、~/.dsh/db-config.json；驱动目录依次使用显式 driverDirectory、DSH_DB_DRIVER_DIRECTORY、连接文件父目录。保留已有显式路径，不自动迁移或上传连接。新设备安装插件到当前 profile、在对应目录安装驱动、通过面板新增本机连接并设置默认别名，重启后加载工具和规则。
+
+queryTimeoutMs 默认 30000，范围 1000–480000 毫秒。db_query 接受 env、sql、limit（默认 100，最大 1000）；db_schema 接受 env、可选 table/schema 和 limit，不传 table 列出表，传入则列出字段，暂不提供完整 DDL/索引导出。结构过滤使用各驱动的绑定参数。行数限制只约束输出，不约束数据库运算量，请在 SQL 中适当限行。每次操作在独立数据库进程中执行；完成、取消或超时后，在工具返回前结束执行进程，关闭其连接资源。建议使用数据库只读账户：只读事务并非隔离数据库函数外部副作用的沙箱。UPDATE_TIME、CREATE_USER 等字段名不再误拦截；多语句、可执行注释及不支持的过程调用会被拒绝，不得绕过。
+
+## 批准机制与连接释放
+
+SQL 规则位于 sql-policy.js，query.js 中的 guardQuery 是只读入口。使用词法边界识别注释、引号及关键字，不改写 SQL 原文。db_query 不执行 DML、DDL 或分析语句；使用 db_execute 向宿主申请本次连接和单条 SQL 的用户批准。缺少批准界面、拒绝或取消时，在连接前终止。不接受模型自报的批准参数，批准不会持久化或复用。
+
+EXPLAIN（包括 ANALYZE）、ANALYZE、VACUUM、OPTIMIZE、REINDEX 等也要求批准，并提前提醒 CPU/IO、全表扫描、持锁及影响其他用户的风险。EXPLAIN ANALYZE 会实际执行 SQL；DDL 可能隐式提交，不能保证回滚。超时或断连后写入结果可能不确定，必须先核实，禁止自动重试。
+
+连接按次创建，使用完立即关闭，不会故意保留 8 分钟。connectionMaxLifetimeMs 默认 480000 毫秒，只能调小，最小 1000；实际截止时间取操作超时与连接寿命的较小值。独立子进程在到期或取消时终止，即使驱动关闭卡住，也结束进程释放连接。等待批准不占用数据库连接。现有本机显式连接配置保持不变。
+
 ## 查看密码
 
 点击已保存密码右侧的眼睛按钮，插件会打开原生 **Windows 安全中心**验证框，验证当前本地 Windows 账户密码，并检查验证账户与运行进程账户一致。
@@ -105,6 +121,9 @@ powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy RemoteSigned -Fi
 | --- | --- |
 | `db_connections` | 列出连接元数据，不返回已保存密码和连接串 |
 | `db_test_connection` | 建立并关闭一次已保存连接，验证是否可用 |
+| `db_query` | 按 env、sql 和可选 limit 执行只读查询 |
+| `db_execute` | 写入、DDL、分析和维护操作的逐次用户批准入口 |
+| `db_schema` | 按 env、table、schema 和 limit 查看表或字段 |
 | `/db-config list` | 获取连接列表 |
 | `/db-config test <别名>` | 测试已保存连接 |
 | `/db-config test-draft <json>` | 测试未保存草稿 |

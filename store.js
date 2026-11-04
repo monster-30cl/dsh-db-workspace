@@ -62,6 +62,13 @@ export function normalizeEntry(input, previous) {
     : (previous !== null && previous.driver === driver ? text(previous.dsn) : '')
   if (dsn === '') throw new Error('请输入连接串')
   const entry = { driver, dsn }
+  // The DSN editor does not expose structured overrides used by PostgreSQL
+  // drivers; preserve them while editing the same driver.
+  if (previous !== null && previous.driver === driver) {
+    for (const key of ['host', 'port', 'database']) {
+      if (Object.hasOwn(previous, key)) entry[key] = previous[key]
+    }
+  }
   const user = text(input.user) !== ''
     ? text(input.user)
     : (previous !== null && previous.driver === driver ? text(previous.user) : '')

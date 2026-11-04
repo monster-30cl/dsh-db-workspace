@@ -139,8 +139,15 @@ export function apply(ctx, rawConfig) {
    * @returns {Promise<{ alias: string, driver: string, ok: true, message: string }>} Probe outcome.
    */
   const probeDraft = async (entry, signal) => {
-    const previous = typeof entry.name === 'string' && entry.name !== ''
-      ? loadConfig(config.configPath).databases[entry.name] ?? null
+    // A renamed draft must keep using its original connection's credentials.
+    // An explicit empty oldName identifies a new draft, even on alias collision.
+    const sourceName = typeof entry.oldName === 'string' ? entry.oldName : entry.name
+    const databases = loadConfig(config.configPath).databases
+    if (typeof entry.oldName === 'string' && entry.oldName !== '' && !Object.hasOwn(databases, entry.oldName)) {
+      throw new Error('原连接不存在，请重新加载')
+    }
+    const previous = typeof sourceName === 'string' && sourceName !== '' && Object.hasOwn(databases, sourceName)
+      ? databases[sourceName]
       : null
     const normalized = normalizeEntry(entry, previous)
     const outcome = await runDatabase(normalized, driverOptions, { kind: 'probe' }, signal)

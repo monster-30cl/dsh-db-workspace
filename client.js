@@ -316,8 +316,6 @@ function ConnectionEditor({ connection, embedded = false, visible, sessionId, bu
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "db-fields", children: [
       input("aliasLabel", draft.name, (value) => {
         setDraft({ ...draft, name: value });
-      }, {
-        disabled: draft.oldName !== ""
       }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { style: styles.field, children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: styles.label, children: t("driverLabel") }),
@@ -396,7 +394,7 @@ function ConnectionEditor({ connection, embedded = false, visible, sessionId, bu
           style: styles.button,
           disabled: busy,
           onClick: () => {
-            const payload = { ...entryPayload(draft), name: draft.name.trim() };
+            const payload = { ...entryPayload(draft), name: draft.name.trim(), oldName: draft.oldName };
             probe(`/db-config test-draft ${JSON.stringify(payload)}`);
           },
           children: t("testAction")

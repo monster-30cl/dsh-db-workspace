@@ -310,9 +310,7 @@ function ConnectionEditor({ connection, embedded = false, visible, sessionId, bu
   return <form style={embedded ? styles.inlineForm : styles.form} onSubmit={event => { event.preventDefault(); if (!busy) save() }}>
       <h3 style={styles.sectionTitle}>{draft.oldName === '' ? t('newTitle') : t('editTitle')}</h3>
       <div className="db-fields">
-      {input('aliasLabel', draft.name, value => { setDraft({ ...draft, name: value }) }, {
-        disabled: draft.oldName !== '',
-      })}
+      {input('aliasLabel', draft.name, value => { setDraft({ ...draft, name: value }) })}
       <label style={styles.field}>
         <span style={styles.label}>{t('driverLabel')}</span>
         <select
@@ -366,7 +364,7 @@ function ConnectionEditor({ connection, embedded = false, visible, sessionId, bu
           style={styles.button}
           disabled={busy}
           onClick={() => {
-            const payload = { ...entryPayload(draft), name: draft.name.trim() }
+            const payload = { ...entryPayload(draft), name: draft.name.trim(), oldName: draft.oldName }
             probe(`/db-config test-draft ${JSON.stringify(payload)}`)
           }}
         >{t('testAction')}</button>

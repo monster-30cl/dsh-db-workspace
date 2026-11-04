@@ -22,6 +22,7 @@ export interface ConnectionView {
 
 /** The connection file listing. */
 export interface ConnectionListing {
+  notificationWarning?: string
   challenge?: string
   wrappedKey?: string
   iv?: string
@@ -392,7 +393,10 @@ export function DatabasePage({ sessionId, t, runCommand }: DatabasePageProps) {
   const [tone, setTone] = useState<'info' | 'error' | 'success'>('info')
   const [search, setSearch] = useState('')
   const [deleteName, setDeleteName] = useState<string | null>(null)
-  const visibleConnections = connections.filter(item =>
+  const [listState, setListState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const orderedConnections = [...connections].sort((left, right) =>
+    Number(defaultAlias ? right.name === defaultAlias : right.isDefault) - Number(defaultAlias ? left.name === defaultAlias : left.isDefault))
+  const visibleConnections = orderedConnections.filter(item =>
     [item.name, item.driver, item.host, item.database, item.user].join(' ').toLowerCase().includes(search.trim().toLowerCase()))
 
   const invoke = useCallback(async (command: string): Promise<ConnectionListing | undefined> => {
@@ -411,13 +415,16 @@ export function DatabasePage({ sessionId, t, runCommand }: DatabasePageProps) {
   }
 
   const refresh = useCallback(() => {
+    setListState('loading')
     setBusy(true)
     setTone('info')
     setStatus(t('loading'))
     void invoke('/db-config list').then((value) => {
+      if (!Array.isArray(value?.connections)) throw new Error(t('loadFailed'))
       applyListing(value, setConnections, setDefaultAlias)
+      setListState('ready')
       setStatus('')
-    }, fail).finally(() => { setBusy(false) })
+    }).catch(cause => { setListState('error'); fail(cause) }).finally(() => { setBusy(false) })
   }, [invoke, t])
 
   useEffect(() => { refresh() }, [refresh])
@@ -435,7 +442,7 @@ export function DatabasePage({ sessionId, t, runCommand }: DatabasePageProps) {
     void invoke(command).then((value) => {
       applyListing(value, setConnections, setDefaultAlias)
       setTone('success')
-      setStatus(done)
+      setStatus(value?.notificationWarning ? `${done} · ${value.notificationWarning}` : done)
       after?.()
     }, fail).finally(() => { setBusy(false) })
   }
@@ -476,14 +483,14 @@ export function DatabasePage({ sessionId, t, runCommand }: DatabasePageProps) {
     </header>
 
     <div style={styles.sectionHead}>
-      <h3 style={styles.sectionTitle}>{t('connectionsTitle')} <span style={styles.badge}>{connections.length}</span></h3>
+      <h3 style={styles.sectionTitle}>{t('connectionsTitle')} <span style={styles.badge}>{listState !== 'ready' && connections.length === 0 ? '—' : connections.length}</span></h3>
       <div style={styles.actions}>
         <button type="button" style={styles.button} disabled={busy} onClick={refresh}>{t('refreshAction')}</button>
       <button
         type="button"
         style={styles.button}
         className="db-primary"
-        disabled={busy || newConnection}
+        disabled={busy || newConnection || listState !== 'ready'}
         onClick={() => { setNewConnection(true) }}
       >{t('addAction')}</button>
       </div>
@@ -494,11 +501,12 @@ export function DatabasePage({ sessionId, t, runCommand }: DatabasePageProps) {
     {connections.length > 0 && visibleConnections.length === 0 && <div style={styles.empty}><p style={styles.hint}>{t('noSearchResults')}</p></div>}
     {connections.length === 0
       ? <div style={styles.empty}>
-          <h3 style={styles.sectionTitle}>{busy ? t('loading') : t('emptyList')}</h3>
-          <p style={styles.hint}>{t('emptyHint')}</p>
+          <h3 style={styles.sectionTitle}>{listState === 'error' ? t('loadFailed') : listState === 'loading' ? t('loading') : t('emptyList')}</h3>
+          {listState === 'ready' && <p style={styles.hint}>{t('emptyHint')}</p>}
+          {listState === 'error' && <button type="button" style={{ ...styles.button, marginTop: 12 }} disabled={busy} onClick={refresh}>{t('refreshAction')}</button>}
         </div>
       : <ul style={styles.list}>
-        {connections.map((item) => <li key={item.name} className={`db-card ${item.isDefault || item.name === defaultAlias ? 'db-default' : ''} ${expanded.has(item.name) ? 'db-expanded' : ''}`} style={{ ...styles.row, display: visibleConnections.some(row => row.name === item.name) ? 'flex' : 'none' }}>
+        {orderedConnections.map((item) => <li key={item.name} className={`db-card ${item.isDefault || item.name === defaultAlias ? 'db-default' : ''} ${expanded.has(item.name) ? 'db-expanded' : ''}`} style={{ ...styles.row, display: visibleConnections.some(row => row.name === item.name) ? 'flex' : 'none' }}>
           <div style={styles.rowHead}>
             <span style={styles.name}>{item.name}</span>
             <span style={styles.badge}>{item.driver}</span>

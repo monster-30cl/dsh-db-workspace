@@ -416,7 +416,9 @@ function DatabasePage({ sessionId, t, runCommand }) {
   const [tone, setTone] = (0, import_react.useState)("info");
   const [search, setSearch] = (0, import_react.useState)("");
   const [deleteName, setDeleteName] = (0, import_react.useState)(null);
-  const visibleConnections = connections.filter((item) => [item.name, item.driver, item.host, item.database, item.user].join(" ").toLowerCase().includes(search.trim().toLowerCase()));
+  const [listState, setListState] = (0, import_react.useState)("loading");
+  const orderedConnections = [...connections].sort((left, right) => Number(defaultAlias ? right.name === defaultAlias : right.isDefault) - Number(defaultAlias ? left.name === defaultAlias : left.isDefault));
+  const visibleConnections = orderedConnections.filter((item) => [item.name, item.driver, item.host, item.database, item.user].join(" ").toLowerCase().includes(search.trim().toLowerCase()));
   const invoke = (0, import_react.useCallback)(async (command) => {
     if (sessionId === void 0) throw new Error(t("commandFailed"));
     const text = await runCommand(sessionId, command);
@@ -431,13 +433,19 @@ function DatabasePage({ sessionId, t, runCommand }) {
     setStatus(cause instanceof Error ? cause.message : String(cause));
   };
   const refresh = (0, import_react.useCallback)(() => {
+    setListState("loading");
     setBusy(true);
     setTone("info");
     setStatus(t("loading"));
     void invoke("/db-config list").then((value) => {
+      if (!Array.isArray(value?.connections)) throw new Error(t("loadFailed"));
       applyListing(value, setConnections, setDefaultAlias);
+      setListState("ready");
       setStatus("");
-    }, fail).finally(() => {
+    }).catch((cause) => {
+      setListState("error");
+      fail(cause);
+    }).finally(() => {
       setBusy(false);
     });
   }, [invoke, t]);
@@ -460,7 +468,7 @@ function DatabasePage({ sessionId, t, runCommand }) {
     void invoke(command).then((value) => {
       applyListing(value, setConnections, setDefaultAlias);
       setTone("success");
-      setStatus(done);
+      setStatus(value?.notificationWarning ? `${done} \xB7 ${value.notificationWarning}` : done);
       after?.();
     }, fail).finally(() => {
       setBusy(false);
@@ -539,7 +547,7 @@ function DatabasePage({ sessionId, t, runCommand }) {
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", { style: styles.sectionTitle, children: [
         t("connectionsTitle"),
         " ",
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: styles.badge, children: connections.length })
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: styles.badge, children: listState !== "ready" && connections.length === 0 ? "\u2014" : connections.length })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.actions, children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", style: styles.button, disabled: busy, onClick: refresh, children: t("refreshAction") }),
@@ -549,7 +557,7 @@ function DatabasePage({ sessionId, t, runCommand }) {
             type: "button",
             style: styles.button,
             className: "db-primary",
-            disabled: busy || newConnection,
+            disabled: busy || newConnection || listState !== "ready",
             onClick: () => {
               setNewConnection(true);
             },
@@ -566,9 +574,10 @@ function DatabasePage({ sessionId, t, runCommand }) {
     } }),
     connections.length > 0 && visibleConnections.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.empty, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.hint, children: t("noSearchResults") }) }),
     connections.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.empty, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { style: styles.sectionTitle, children: busy ? t("loading") : t("emptyList") }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.hint, children: t("emptyHint") })
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", { style: styles.list, children: connections.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { className: `db-card ${item.isDefault || item.name === defaultAlias ? "db-default" : ""} ${expanded.has(item.name) ? "db-expanded" : ""}`, style: { ...styles.row, display: visibleConnections.some((row) => row.name === item.name) ? "flex" : "none" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { style: styles.sectionTitle, children: listState === "error" ? t("loadFailed") : listState === "loading" ? t("loading") : t("emptyList") }),
+      listState === "ready" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.hint, children: t("emptyHint") }),
+      listState === "error" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { type: "button", style: { ...styles.button, marginTop: 12 }, disabled: busy, onClick: refresh, children: t("refreshAction") })
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", { style: styles.list, children: orderedConnections.map((item) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { className: `db-card ${item.isDefault || item.name === defaultAlias ? "db-default" : ""} ${expanded.has(item.name) ? "db-expanded" : ""}`, style: { ...styles.row, display: visibleConnections.some((row) => row.name === item.name) ? "flex" : "none" }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.rowHead, children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: styles.name, children: item.name }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: styles.badge, children: item.driver }),
@@ -643,6 +652,8 @@ function DatabasePage({ sessionId, t, runCommand }) {
 
 // client/locales.ts
 var en = {
+  loadFailed: "Could not load connections. Check the connection and retry.",
+  noticeFailed: "Saved successfully, but the chat notification could not be delivered.",
   collapseAction: "Collapse",
   revealWaiting: "Complete the Windows Security prompt. It closes after 60 seconds; you can keep using the form.",
   revealTimeout: "Verification timed out. Please retry.",
@@ -697,6 +708,8 @@ var en = {
   commandFailed: "Command failed"
 };
 var zh = {
+  loadFailed: "\u8FDE\u63A5\u5217\u8868\u52A0\u8F7D\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u8FDE\u63A5\u540E\u5237\u65B0\u91CD\u8BD5\u3002",
+  noticeFailed: "\u8FDE\u63A5\u5DF2\u4FDD\u5B58\uFF0C\u4F46\u5DE5\u4F5C\u533A\u5B8C\u6210\u63D0\u793A\u53D1\u9001\u5931\u8D25\u3002",
   collapseAction: "\u6536\u8D77",
   revealWaiting: "\u8BF7\u5728 Windows \u5B89\u5168\u4E2D\u5FC3\u7A97\u53E3\u5B8C\u6210\u9A8C\u8BC1\uFF0C60 \u79D2\u540E\u8D85\u65F6\u5173\u95ED\uFF1B\u8868\u5355\u4ECD\u53EF\u64CD\u4F5C\u3002",
   revealTimeout: "\u9A8C\u8BC1\u7B49\u5F85\u8D85\u65F6\uFF0C\u8BF7\u91CD\u8BD5\u3002",
@@ -753,7 +766,7 @@ var zh = {
 
 // client/index.tsx
 var import_jsx_runtime2 = require("react/jsx-runtime");
-var inject = ["slots", "locale", "sidebarRightTabs", "remote", "remote.commands"];
+var inject = ["slots", "locale", "sidebarRightTabs", "remote", "remote.commands", "connection"];
 var NS = "db.workspace";
 var DB_PANE_ID = "@local/dsh-db-workspace/page";
 var DB_PANE_KIND = "dbWorkspace";
@@ -786,12 +799,19 @@ function apply(ctx) {
     locale: NS,
     inject: () => ({
       runCommand: async (sessionId, command) => {
-        const result = await ctx.remote.commands.execute(sessionId, command, []);
+        const result = await ctx.connection.rpc.call("/api", "db-workspace/panel", { sessionId, command });
         if (!result.ok) throw new Error(result.error.message);
-        const outcome = result.value?.result;
-        if (outcome === void 0) throw new Error("command result missing");
-        if (outcome.kind === "error") throw new Error(outcome.text ?? t("commandFailed"));
-        return outcome.text ?? "";
+        const value = result.value;
+        if (value === void 0) throw new Error(t("commandFailed"));
+        if (value.noticeToken) {
+          try {
+            const notice = await ctx.remote.commands.execute(sessionId, `/db-config notify ${value.noticeToken}`, []);
+            if (!notice.ok || notice.value?.result?.kind !== "success") throw new Error("notice failed");
+          } catch {
+            return JSON.stringify({ ...JSON.parse(value.text), notificationWarning: t("noticeFailed") });
+          }
+        }
+        return value.text ?? "";
       }
     })
   }, DatabasePage));

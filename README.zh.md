@@ -32,6 +32,8 @@ node install.mjs --profile-dir "<profile目录>"
 
 如果环境已提供 `DSH_PROFILE_DIR`，直接执行 `node install.mjs` 即可使用该 profile。否则脚本按 `<DSH_HOME>/profiles/<DSH_PROFILE 或 desktop>` 定位，home 缺省为 `~/.dsh`。桌面应用可能使用其他 home，请优先指定真实 profile 路径。安装脚本会增加本地 `link:` 依赖、bundle 条目和目录联接点，安装后请保留源码目录。
 
+连接别名支持中文、英文字母、数字、短横线和下划线，以中文、英文字母或数字开头，最长 64 个字符，不支持空格及其他标点。重命名保留已有凭据，并同步更新对应的默认连接别名。
+
 ## 本机配置
 
 公开版 `cordis.patch.yml` 使用下列宿主默认值。如需覆盖，请在本机配置，不要将个人配置提交至公开仓库。
@@ -131,7 +133,7 @@ powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy RemoteSigned -Fi
 | `/db-config default <别名>` | 设置默认连接 |
 | `/db-config delete <别名>` | 删除连接 |
 
-密码查看使用带一次性公钥和随机挑战值的内部 `/db-config reveal <json>` 请求，不是返回明文密码的命令。页面动作通过远程命令通道执行，结果可能出现在对话中。提交的命令输入不记录（`recordInput: false`），连通性测试错误会对已配置的敏感值脱敏。
+密码查看使用带一次性公钥和随机挑战值的内部 `/db-config reveal <json>` 请求，不是返回明文密码的命令。连接面板使用独立的已认证 RPC 通道，读取列表、测试、设默认、删除及查看密码不再生成聊天命令行，失败仅在面板提示。只有新增或修改保存成功，才通过一次性且绑定会话的回执发送简短完成提示。命令输入不记录（`recordInput: false`），完成提示不包含连接配置或凭据；用户手动输入的斜杠命令仍保留正常命令历史。
 
 ## 开发与校验
 

@@ -1,5 +1,7 @@
 /** Localized copy owned by the database workspace plugin. */
 export type DatabaseLocaleKey =
+  | 'loadFailed'
+  | 'noticeFailed'
   | 'collapseAction'
   | 'revealWaiting'
   | 'revealTimeout'
@@ -54,6 +56,8 @@ export type DatabaseLocaleKey =
   | 'commandFailed'
 
 export const en: Record<DatabaseLocaleKey, string> = {
+  loadFailed: 'Could not load connections. Check the connection and retry.',
+  noticeFailed: 'Saved successfully, but the chat notification could not be delivered.',
   collapseAction: 'Collapse',
   revealWaiting: 'Complete the Windows Security prompt. It closes after 60 seconds; you can keep using the form.',
   revealTimeout: 'Verification timed out. Please retry.',
@@ -109,6 +113,8 @@ export const en: Record<DatabaseLocaleKey, string> = {
 }
 
 export const zh: Record<DatabaseLocaleKey, string> = {
+  loadFailed: '连接列表加载失败，请检查连接后刷新重试。',
+  noticeFailed: '连接已保存，但工作区完成提示发送失败。',
   collapseAction: '收起',
   revealWaiting: '请在 Windows 安全中心窗口完成验证，60 秒后超时关闭；表单仍可操作。',
   revealTimeout: '验证等待超时，请重试。',

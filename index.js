@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 /**
  * Database workspace: connection configuration and connectivity for the
  * `db-config.json` file used by the standalone `db.js` helper.
@@ -22,7 +23,7 @@ import { deleteConnection, markDefault, normalizeEntry, saveConnection, writeCon
 export const name = 'db-workspace'
 
 /** Services this plugin contributes to. */
-export const inject = ['tools', 'commands', 'systemPrompt']
+export const inject = ['tools', 'commands', 'systemPrompt', 'connection']
 
 /** Deployment defaults for the connection file and the probe deadlines. */
 export const DEFAULTS = Object.freeze({
@@ -154,7 +155,97 @@ export function apply(ctx, rawConfig) {
     return { alias: typeof entry.name === 'string' ? entry.name : '', driver: outcome.driver, ok: true, message: outcome.message }
   }
 
+  // Panel operations use Connection's authenticated channel, without command lifecycle events.
+  const notices = new Map()
+  const handleCommand = async (invocation) => {
+    let request
+    try {
+      request = parseConfigCommand(invocation.rawInput)
+    } catch (cause) {
+      return { kind: 'error', text: messageOf(cause) }
+    }
+    try {
+      switch (request.action) {
+        case 'notify': {
+          const receipt = notices.get(request.token)
+          if (!receipt || receipt.expires < Date.now() || receipt.sessionId !== invocation.agent?.session?.id) throw new Error('保存提示已失效或会话不匹配')
+          notices.delete(request.token)
+          return { kind: 'success', text: receipt.text }
+        }
+        case 'reveal': {
+          const resolved = resolveEntry(loadConfig(config.configPath), request.alias)
+          const result = await revealPassword(resolved.entry, resolved.name, invocation.signal, request)
+          return { kind: 'success', text: JSON.stringify(result) }
+        }
+        case 'list':
+          return { kind: 'success', text: JSON.stringify(listing(), null, 2) }
+        case 'test':
+          return { kind: 'success', text: JSON.stringify(await probeAlias(request.alias, invocation.signal), null, 2) }
+        case 'test-draft':
+          return { kind: 'success', text: JSON.stringify(await probeDraft(request.entry, invocation.signal), null, 2) }
+        case 'save': {
+          const next = saveConnection(loadConfig(config.configPath), request)
+          writeConfigFile(config.configPath, next)
+          return { kind: 'success', text: JSON.stringify(listing(), null, 2) }
+        }
+        case 'delete': {
+          const next = deleteConnection(loadConfig(config.configPath), request.alias)
+          writeConfigFile(config.configPath, next)
+          return { kind: 'success', text: JSON.stringify(listing(), null, 2) }
+        }
+        case 'default': {
+          const next = markDefault(loadConfig(config.configPath), request.alias)
+          writeConfigFile(config.configPath, next)
+          return { kind: 'success', text: JSON.stringify(listing(), null, 2) }
+        }
+        default:
+          return { kind: 'error', text: USAGE }
+      }
+    } catch (cause) {
+      return { kind: 'error', text: messageOf(cause) }
+    }
+  }
+  const handlePanel = async (endpoint, payload, signal) => {
+    try {
+      if (signal.aborted) throw new Error('数据库面板操作已取消')
+      if (endpoint !== 'panel' || !payload || typeof payload.command !== 'string' || typeof payload.sessionId !== 'string' || !payload.sessionId) throw new Error('无效的数据库面板请求')
+      const match = /^\/db-config\s+([a-z-]+)(?:\s|$)/u.exec(payload.command)
+      if (!match || !['list', 'test', 'test-draft', 'save', 'delete', 'default', 'reveal'].includes(match[1])) throw new Error('不支持的数据库面板操作')
+      const rawInput = payload.command.replace(/^\/db-config\s+/u, '')
+      const result = await handleCommand({ rawInput, signal })
+      if (result.kind === 'error') return { ok: false, error: { code: 'DB_PANEL_ERROR', message: result.text, details: {} } }
+      const value = { text: result.text ?? '' }
+      if (match[1] === 'save') {
+        const request = parseConfigCommand(rawInput)
+        for (const [token, receipt] of notices) if (receipt.expires < Date.now()) notices.delete(token)
+        if (notices.size >= 1000) notices.delete(notices.keys().next().value)
+        const token = randomUUID()
+        const alias = String(request.name).trim()
+        const text = request.oldName ? `数据库连接“${alias}”已修改。` : `数据库连接“${alias}”已新增。`
+        notices.set(token, { sessionId: payload.sessionId, expires: Date.now() + 300000, text })
+        value.noticeToken = token
+      }
+      return { ok: true, value }
+    } catch (cause) { return { ok: false, error: { code: 'DB_PANEL_ERROR', message: messageOf(cause), details: {} } } }
+  }
+
+  // Desktop shells forward /api paths; a separate top-level channel is treated as an asset.
+  const disposePanel = ctx.connection.fetch.register({
+    path: '/api/db-workspace/panel', methods: ['POST'], requestBody: 'buffered',
+    async fetch(request) {
+      let message
+      try { message = await request.json() } catch { return new Response('Invalid RPC JSON', { status: 400 }) }
+      if (!message || message.type !== 'client-request' || typeof message.rpcId !== 'string' || !message.rpcId || message.method !== 'db-workspace/panel') {
+        return new Response('Invalid RPC envelope', { status: 400 })
+      }
+      const result = await handlePanel('panel', message.payload, request.signal)
+      return Response.json({ type: 'server-response', rpcId: message.rpcId, result })
+    },
+  })
+
   const disposers = [
+    disposePanel,
+    () => notices.clear(),
     ctx.systemPrompt.section({ name: 'db-workspace:database-policy', order: 500, text: DATABASE_POLICY }),
     ctx.tools.register({
       name: 'db_connections',
@@ -244,48 +335,7 @@ export function apply(ctx, rawConfig) {
       // The save and test-draft payloads carry a submitted password; the
       // command/run event must not persist them. Results stay secret-free.
       recordInput: false,
-      handler: async (invocation) => {
-        let request
-        try {
-          request = parseConfigCommand(invocation.rawInput)
-        } catch (cause) {
-          return { kind: 'error', text: messageOf(cause) }
-        }
-        try {
-          switch (request.action) {
-            case 'reveal': {
-              const resolved = resolveEntry(loadConfig(config.configPath), request.alias)
-              const result = await revealPassword(resolved.entry, resolved.name, invocation.signal, request)
-              return { kind: 'success', text: JSON.stringify(result) }
-            }
-            case 'list':
-              return { kind: 'success', text: JSON.stringify(listing(), null, 2) }
-            case 'test':
-              return { kind: 'success', text: JSON.stringify(await probeAlias(request.alias, invocation.signal), null, 2) }
-            case 'test-draft':
-              return { kind: 'success', text: JSON.stringify(await probeDraft(request.entry, invocation.signal), null, 2) }
-            case 'save': {
-              const next = saveConnection(loadConfig(config.configPath), request)
-              writeConfigFile(config.configPath, next)
-              return { kind: 'success', text: JSON.stringify(listing(), null, 2) }
-            }
-            case 'delete': {
-              const next = deleteConnection(loadConfig(config.configPath), request.alias)
-              writeConfigFile(config.configPath, next)
-              return { kind: 'success', text: JSON.stringify(listing(), null, 2) }
-            }
-            case 'default': {
-              const next = markDefault(loadConfig(config.configPath), request.alias)
-              writeConfigFile(config.configPath, next)
-              return { kind: 'success', text: JSON.stringify(listing(), null, 2) }
-            }
-            default:
-              return { kind: 'error', text: USAGE }
-          }
-        } catch (cause) {
-          return { kind: 'error', text: messageOf(cause) }
-        }
-      },
+      handler: handleCommand,
     }),
   ]
 
@@ -319,6 +369,9 @@ export function parseConfigCommand(rawInput) {
     case 'default':
       if (rest === '') throw new Error(`${USAGE}\n缺少别名`)
       return { action, alias: rest.split(/\s+/u).pop() }
+    case 'notify':
+      if (!/^[a-f0-9-]{36}$/u.test(rest)) throw new Error('无效的保存提示')
+      return { action, token: rest }
     case 'reveal': {
       const payload = parsePayload(rest)
       if (typeof payload.alias !== 'string' || payload.alias === '') throw new Error('缺少连接别名')

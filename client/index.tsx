@@ -3,7 +3,7 @@
 import { DatabasePage } from './DatabasePage.tsx'
 import { en, zh } from './locales.ts'
 
-export const inject = ['slots', 'locale', 'sidebarRightTabs', 'remote', 'remote.commands']
+export const inject = ['slots', 'locale', 'sidebarRightTabs', 'remote', 'remote.commands', 'connection']
 
 /** Locale namespace owned by this pane. */
 const NS = 'db.workspace'
@@ -55,12 +55,20 @@ export function apply(ctx) {
     locale: NS,
     inject: () => ({
       runCommand: async (sessionId, command) => {
-        const result = await ctx.remote.commands.execute(sessionId, command, [])
+        const result = await ctx.connection.rpc.call('/api', 'db-workspace/panel', { sessionId, command })
         if (!result.ok) throw new Error(result.error.message)
-        const outcome = result.value?.result
-        if (outcome === undefined) throw new Error('command result missing')
-        if (outcome.kind === 'error') throw new Error(outcome.text ?? t('commandFailed'))
-        return outcome.text ?? ''
+        const value = result.value
+        if (value === undefined) throw new Error(t('commandFailed'))
+        if (value.noticeToken) {
+          try {
+            const notice = await ctx.remote.commands.execute(sessionId, `/db-config notify ${value.noticeToken}`, [])
+            if (!notice.ok || notice.value?.result?.kind !== 'success') throw new Error('notice failed')
+          } catch {
+            // Saving already succeeded. Do not report a save failure or invite a duplicate save.
+            return JSON.stringify({ ...JSON.parse(value.text), notificationWarning: t('noticeFailed') })
+          }
+        }
+        return value.text ?? ''
       },
     }),
   }, DatabasePage))

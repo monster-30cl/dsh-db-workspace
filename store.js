@@ -15,7 +15,7 @@ import { dirname } from 'node:path'
 export const SUPPORTED_DRIVERS = Object.freeze(['kingbase', 'postgres', 'pg', 'mysql', 'oracle', 'oceanbase'])
 
 /** Alias rules shared with the standalone GUI. */
-export const ALIAS_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/u
+export const ALIAS_PATTERN = /^[\p{Script=Han}A-Za-z0-9][\p{Script=Han}A-Za-z0-9_-]{0,63}$/u
 
 /** Entry fields OceanBase uses instead of a connection string. */
 const OCEANBASE_FIELDS = ['host', 'user', 'tenant', 'cluster', 'database']
@@ -89,7 +89,7 @@ export function normalizeEntry(input, previous) {
  */
 export function normalizeAlias(value) {
   const alias = text(value)
-  if (!ALIAS_PATTERN.test(alias)) throw new Error('别名需以字母或数字开头，仅可包含字母、数字、-、_，最长 64 个字符')
+  if (!ALIAS_PATTERN.test(alias)) throw new Error('别名需以中文、英文字母或数字开头，仅可包含中文、英文字母、数字、-、_，最长 64 个字符')
   return alias
 }
 

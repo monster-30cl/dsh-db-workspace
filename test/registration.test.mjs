@@ -14,6 +14,7 @@ function stubContext() {
   const tools = []
   const commands = []
   const ctx = {
+    connection: { fetch: { register() { return () => {} } } },
     systemPrompt: { section() { return () => {} } },
     tools: { register(definition) { tools.push(definition); return () => {} } },
     commands: { register(definition) { commands.push(definition); return () => {} } },
@@ -152,7 +153,7 @@ test('a rejected save reports the validation message and leaves the file untouch
     signal,
   })
   assert.equal(result.kind, 'error')
-  assert.match(result.text, /别名需以字母或数字开头/u)
+  assert.match(result.text, /别名需以中文、英文字母或数字开头/u)
   assert.equal(readFileSync(configPath, 'utf8'), before)
 })
 

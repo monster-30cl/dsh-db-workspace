@@ -27,11 +27,12 @@ const driverDirectory = directory
 
 const host = await import('./index.js')
 assert.equal(host.name, 'db-workspace')
-assert.deepEqual([...host.inject].sort(), ['commands', 'systemPrompt', 'tools'])
+assert.deepEqual([...host.inject].sort(), ['commands', 'connection', 'systemPrompt', 'tools'])
 
 const tools = []
 const commands = []
 host.apply({
+  connection: { fetch: { register() { return () => {} } } },
   systemPrompt: { section(definition) { assert.ok(definition.text.includes('db_query')); return () => {} } },
   tools: { register(definition) { tools.push(definition); return () => {} } },
   commands: { register(definition) { commands.push(definition); return () => {} } },
@@ -63,5 +64,5 @@ assert.equal(captured.length, 1, 'the bundle registers exactly one module')
 assert.equal(captured[0].id, manifest.name, 'bundle id matches the package name')
 const client = captured[0].factory(require)
 assert.equal(typeof client.apply, 'function', 'client exports apply')
-assert.deepEqual([...client.inject].sort(), ['locale', 'remote', 'remote.commands', 'sidebarRightTabs', 'slots'])
+assert.deepEqual([...client.inject].sort(), ['connection', 'locale', 'remote', 'remote.commands', 'sidebarRightTabs', 'slots'])
 console.log('CLIENT OK: bundle evaluates and exposes inject/apply')

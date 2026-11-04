@@ -32,6 +32,8 @@ Replace `<profile-directory>` with the app's active profile. Restart JoyinCode a
 
 If the environment supplies `DSH_PROFILE_DIR`, `node install.mjs` uses it automatically. Otherwise the script resolves `<DSH_HOME>/profiles/<DSH_PROFILE or desktop>`, with `~/.dsh` as the fallback home. The desktop app may use a different home; prefer its actual profile path. The installer adds a local `link:` dependency, a bundle entry, and a directory junction. Keep the checkout in place afterwards.
 
+Connection aliases may contain Chinese characters, ASCII letters, digits, hyphens and underscores. Start with a Chinese character, letter or digit; the maximum length is 64 characters. Spaces and other punctuation are not supported. Renaming retains stored credentials and updates the default alias when applicable.
+
 ## Local configuration
 
 The public `cordis.patch.yml` uses the host defaults below. Keep personal configuration overrides out of public commits.
@@ -131,7 +133,7 @@ powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy RemoteSigned -Fi
 | `/db-config default <alias>` | Set the default connection |
 | `/db-config delete <alias>` | Delete a connection |
 
-Password viewing uses an internal `/db-config reveal <json>` request with an ephemeral public key and challenge; it is not a plaintext-password command. Page actions use the remote command bridge, so command results may appear in the conversation. Submitted command input is not recorded (`recordInput: false`); probe failures redact configured secrets.
+Password viewing uses an internal `/db-config reveal <json>` request with an ephemeral public key and challenge; it is not a plaintext-password command. Connection-panel actions use a separate authenticated RPC channel. Listing, testing, choosing the default, deleting and password viewing do not add conversation command rows; errors stay in the panel. Only a successful add or edit emits a short completion notice via a single-use, session-bound receipt. Submitted command input is not recorded (`recordInput: false`); notices contain no connection settings or credentials. Manually entered slash commands still use the ordinary command history.
 
 ## Development and verification
 

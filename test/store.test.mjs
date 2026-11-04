@@ -50,9 +50,10 @@ test('an unsupported driver is rejected', () => {
   assert.throws(() => normalizeEntry({ driver: 'db2', dsn: 'x' }, null), /请选择受支持的驱动/u)
 })
 
-test('alias validation mirrors the standalone GUI', () => {
+test('alias validation accepts Chinese and retains identifier restrictions', () => {
   assert.equal(normalizeAlias('tams-test'), 'tams-test')
-  assert.throws(() => normalizeAlias('-bad'), /别名需以字母或数字开头/u)
+  assert.equal(normalizeAlias('示例库Dev_01'), '示例库Dev_01')
+  assert.throws(() => normalizeAlias('-bad'), /别名需以中文、英文字母或数字开头/u)
   assert.throws(() => normalizeAlias('has space'), /别名/u)
 })
 

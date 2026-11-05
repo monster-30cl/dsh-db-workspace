@@ -16,7 +16,7 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// client/index.tsx
+// ../dsh-db-workspace/client/index.tsx
 var index_exports = {};
 __export(index_exports, {
   DB_PANE_ID: () => DB_PANE_ID,
@@ -26,7 +26,7 @@ __export(index_exports, {
 });
 module.exports = __toCommonJS(index_exports);
 
-// client/DatabasePage.tsx
+// ../dsh-db-workspace/client/DatabasePage.tsx
 var import_react = require("react");
 var import_jsx_runtime = require("react/jsx-runtime");
 var DRIVERS = ["kingbase", "postgres", "mysql", "oracle", "oceanbase"];
@@ -650,7 +650,7 @@ function DatabasePage({ sessionId, t, runCommand }) {
   ] });
 }
 
-// client/locales.ts
+// ../dsh-db-workspace/client/locales.ts
 var en = {
   loadFailed: "Could not load connections. Check the connection and retry.",
   noticeFailed: "Saved successfully, but the chat notification could not be delivered.",
@@ -764,9 +764,9 @@ var zh = {
   commandFailed: "\u547D\u4EE4\u6267\u884C\u5931\u8D25"
 };
 
-// client/index.tsx
+// ../dsh-db-workspace/client/index.tsx
 var import_jsx_runtime2 = require("react/jsx-runtime");
-var inject = ["slots", "locale", "sidebarRightTabs", "remote", "remote.commands", "connection"];
+var inject = ["slots", "locale", "sidebarRightTabs", "sidebarRight", "uiSession", "layout", "shortcuts", "remote", "remote.commands", "connection"];
 var NS = "db.workspace";
 var DB_PANE_ID = "@local/dsh-db-workspace/page";
 var DB_PANE_KIND = "dbWorkspace";
@@ -779,6 +779,37 @@ function DatabaseIcon() {
   ] });
 }
 function apply(ctx) {
+  const shortcutText = ctx.locale.bind("dbWorkspace.shortcuts");
+  ctx.effect(() => ctx.locale.register("dbWorkspace.shortcuts", { zh: { "open": "\u6253\u5F00\u6570\u636E\u5E93\u5DE5\u4F5C\u533A", "noSession": "\u8BF7\u5148\u9009\u62E9\u4E00\u4E2A\u5BF9\u8BDD" }, en: { "open": "Open database workspace", "noSession": "Select a conversation first" } }), "dbWorkspace.shortcuts: dictionaries");
+  ctx.effect(() => ctx.shortcuts.register({
+    id: "db.workspace.open",
+    label: () => shortcutText("open"),
+    aliases: ["DB", "\u6570\u636E\u5E93", "\u6570\u636E\u5E93\u5DE5\u4F5C\u533A", "database workspace"],
+    defaults: {},
+    regions: ["page", "editable", "terminal"],
+    modals: [],
+    resolve: () => {
+      const sessionId = ctx.uiSession.adapter.current.getSnapshot().key;
+      if (sessionId === void 0) return { status: "blocked", reason: shortcutText("noSession") };
+      return { status: "handled", run: () => {
+        ctx.layout.selectPanel(null);
+        let attempts = 0;
+        const open = () => {
+          if (ctx.uiSession.adapter.current.getSnapshot().key !== sessionId) return;
+          if (ctx.sidebarRight.mounted.getSnapshot() === sessionId) {
+            try {
+              ctx.sidebarRight.openTab("dbWorkspace");
+              return;
+            } catch (error) {
+              if (!(error instanceof Error) || !error.message.includes("no session surface is mounted")) throw error;
+            }
+          }
+          if (++attempts < 120) requestAnimationFrame(open);
+        };
+        requestAnimationFrame(open);
+      } };
+    }
+  }), "db.workspace.open: shortcut");
   const t = ctx.locale.bind(NS);
   ctx.effect(() => ctx.locale.register(NS, { en, zh }), "db: dictionaries");
   ctx.effect(() => ctx.sidebarRightTabs.register({

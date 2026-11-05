@@ -3,7 +3,7 @@
 import { DatabasePage } from './DatabasePage.tsx'
 import { en, zh } from './locales.ts'
 
-export const inject = ['slots', 'locale', 'sidebarRightTabs', 'remote', 'remote.commands', 'connection']
+export const inject = ['slots', 'locale', 'sidebarRightTabs', 'sidebarRight', 'uiSession', 'layout', 'shortcuts', 'remote', 'remote.commands', 'connection']
 
 /** Locale namespace owned by this pane. */
 const NS = 'db.workspace'
@@ -35,6 +35,31 @@ function DatabaseIcon() {
  * @param ctx Client context injecting the sidebar, slot, locale, and remote services.
  */
 export function apply(ctx) {
+  const shortcutText = ctx.locale.bind('dbWorkspace.shortcuts')
+  ctx.effect(() => ctx.locale.register('dbWorkspace.shortcuts', { zh: {"open":"打开数据库工作区","noSession":"请先选择一个对话"}, en: {"open":"Open database workspace","noSession":"Select a conversation first"} }), 'dbWorkspace.shortcuts: dictionaries')
+  ctx.effect(() => ctx.shortcuts.register({
+    id: 'db.workspace.open', label: () => shortcutText('open'),
+    aliases: ["DB","数据库","数据库工作区","database workspace"], defaults: {},
+    regions: ['page', 'editable', 'terminal'], modals: [],
+    resolve: () => {
+      const sessionId = ctx.uiSession.adapter.current.getSnapshot().key
+      if (sessionId === undefined) return { status: 'blocked', reason: shortcutText('noSession') }
+      return { status: 'handled', run: () => {
+        ctx.layout.selectPanel(null)
+        let attempts = 0
+        const open = () => {
+          if (ctx.uiSession.adapter.current.getSnapshot().key !== sessionId) return
+          if (ctx.sidebarRight.mounted.getSnapshot() === sessionId) {
+            try { ctx.sidebarRight.openTab('dbWorkspace'); return }
+            catch (error) { if (!(error instanceof Error) || !error.message.includes('no session surface is mounted')) throw error }
+          }
+          if (++attempts < 120) requestAnimationFrame(open)
+        }
+        requestAnimationFrame(open)
+      } }
+    },
+  }), 'db.workspace.open: shortcut')
+
   const t = ctx.locale.bind(NS)
   ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'db: dictionaries')
   ctx.effect(() => ctx.sidebarRightTabs.register({

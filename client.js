@@ -818,6 +818,7 @@ function apply(ctx) {
     priority: "builtin",
     title: () => t("title"),
     guide: [{
+      commandId: "db.workspace.open",
       order: 32,
       title: () => t("title"),
       description: () => t("description"),

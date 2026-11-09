@@ -7,6 +7,7 @@ export type DatabaseLocaleKey =
   | 'revealTimeout'
   | 'revealShown'
   | 'hidePassword'
+  | 'showPassword'
   | 'dismissAction'
   | 'revealAction'
   | 'revealHint'
@@ -63,6 +64,7 @@ export const en: Record<DatabaseLocaleKey, string> = {
   revealTimeout: 'Verification timed out. Please retry.',
   revealShown: 'Password shown temporarily. It hides after 20 seconds or when you switch windows.',
   hidePassword: 'Hide password',
+  showPassword: 'Show password',
   dismissAction: 'Dismiss notification',
   revealAction: 'View password with Windows verification',
   revealHint: 'Verify your Windows account password in a local window to view. An account password is required.',
@@ -120,6 +122,7 @@ export const zh: Record<DatabaseLocaleKey, string> = {
   revealTimeout: '验证等待超时，请重试。',
   revealShown: '密码已临时显示，20 秒后或切换窗口时自动隐藏。',
   hidePassword: '隐藏密码',
+  showPassword: '显示密码',
   dismissAction: '关闭提醒',
   revealAction: '验证 Windows 密码后查看',
   revealHint: '在本机窗口验证 Windows 账户密码后查看；未设置账户密码时拒绝查看。',

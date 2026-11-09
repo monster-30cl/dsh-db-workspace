@@ -204,6 +204,7 @@ function ConnectionEditor({ connection, embedded = false, visible, sessionId, bu
   const [draft, setDraft] = useState<Draft>(() => draftOf(connection))
   const [revealing, setRevealing] = useState(false)
   const [revealed, setRevealed] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
   const revealRequest = useRef(0)
   const passwordId = connection ? 'db-password-existing-' + encodeURIComponent(connection.name) : 'db-password-new'
   useEffect(() => {
@@ -273,22 +274,23 @@ function ConnectionEditor({ connection, embedded = false, visible, sessionId, bu
   const passwordField = () => {
     if (draft === null) return null
     const stored = connection
+    const passwordVisible = stored ? !!revealed : showNewPassword
     return <div style={styles.field}>
       <label style={styles.label} htmlFor={passwordId}>{t('passwordLabel')}</label>
       <div style={{ display: 'flex', gap: 6 }}>
-        <input id={passwordId} style={styles.input} type={revealed ? 'text' : 'password'} autoComplete="new-password" readOnly={!!revealed}
+        <input id={passwordId} style={styles.input} type={passwordVisible ? 'text' : 'password'} autoComplete="new-password" readOnly={!!revealed}
           value={revealed || draft.password} placeholder={stored?.hasPassword ? '••••••••' : ''} disabled={busy}
           onChange={event => { setDraft({ ...draft, password: event.target.value }) }} />
-        <button type="button" style={{ ...styles.button, flexShrink: 0 }} disabled={busy || revealing || !stored?.hasPassword || draft.driver !== stored.driver || draft.password !== ''}
-          title={t(revealed ? 'hidePassword' : 'revealAction')} aria-label={t(revealed ? 'hidePassword' : 'revealAction')} aria-pressed={!!revealed}
-          onClick={() => { void reveal() }}>
+        <button type="button" style={{ ...styles.button, flexShrink: 0 }} disabled={busy || (!!stored && (revealing || !stored.hasPassword || draft.driver !== stored.driver || draft.password !== ''))}
+          title={t(passwordVisible ? 'hidePassword' : stored ? 'revealAction' : 'showPassword')} aria-label={t(passwordVisible ? 'hidePassword' : stored ? 'revealAction' : 'showPassword')} aria-pressed={passwordVisible}
+          onClick={() => { if (stored) { void reveal() } else { setShowNewPassword(value => !value) } }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
             <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
-            {revealed && <path d="m3 3 18 18" />}
+            {passwordVisible && <path d="m3 3 18 18" />}
           </svg>
         </button>
       </div>
-      <p style={styles.hint}>{t('revealHint')}</p>
+      {stored && <p style={styles.hint}>{t('revealHint')}</p>}
     </div>
   }
 

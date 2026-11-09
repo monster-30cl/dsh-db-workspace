@@ -16,7 +16,7 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// ../dsh-db-workspace/client/index.tsx
+// client/index.tsx
 var index_exports = {};
 __export(index_exports, {
   DB_PANE_ID: () => DB_PANE_ID,
@@ -26,7 +26,7 @@ __export(index_exports, {
 });
 module.exports = __toCommonJS(index_exports);
 
-// ../dsh-db-workspace/client/DatabasePage.tsx
+// client/DatabasePage.tsx
 var import_react = require("react");
 var import_jsx_runtime = require("react/jsx-runtime");
 var DRIVERS = ["kingbase", "postgres", "mysql", "oracle", "oceanbase"];
@@ -166,6 +166,7 @@ function ConnectionEditor({ connection, embedded = false, visible, sessionId, bu
   const [draft, setDraft] = (0, import_react.useState)(() => draftOf(connection));
   const [revealing, setRevealing] = (0, import_react.useState)(false);
   const [revealed, setRevealed] = (0, import_react.useState)("");
+  const [showNewPassword, setShowNewPassword] = (0, import_react.useState)(false);
   const revealRequest = (0, import_react.useRef)(0);
   const passwordId = connection ? "db-password-existing-" + encodeURIComponent(connection.name) : "db-password-new";
   (0, import_react.useEffect)(() => {
@@ -249,6 +250,7 @@ function ConnectionEditor({ connection, embedded = false, visible, sessionId, bu
   const passwordField = () => {
     if (draft === null) return null;
     const stored = connection;
+    const passwordVisible = stored ? !!revealed : showNewPassword;
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.field, children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { style: styles.label, htmlFor: passwordId, children: t("passwordLabel") }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 6 }, children: [
@@ -257,7 +259,7 @@ function ConnectionEditor({ connection, embedded = false, visible, sessionId, bu
           {
             id: passwordId,
             style: styles.input,
-            type: revealed ? "text" : "password",
+            type: passwordVisible ? "text" : "password",
             autoComplete: "new-password",
             readOnly: !!revealed,
             value: revealed || draft.password,
@@ -273,22 +275,26 @@ function ConnectionEditor({ connection, embedded = false, visible, sessionId, bu
           {
             type: "button",
             style: { ...styles.button, flexShrink: 0 },
-            disabled: busy || revealing || !stored?.hasPassword || draft.driver !== stored.driver || draft.password !== "",
-            title: t(revealed ? "hidePassword" : "revealAction"),
-            "aria-label": t(revealed ? "hidePassword" : "revealAction"),
-            "aria-pressed": !!revealed,
+            disabled: busy || !!stored && (revealing || !stored.hasPassword || draft.driver !== stored.driver || draft.password !== ""),
+            title: t(passwordVisible ? "hidePassword" : stored ? "revealAction" : "showPassword"),
+            "aria-label": t(passwordVisible ? "hidePassword" : stored ? "revealAction" : "showPassword"),
+            "aria-pressed": passwordVisible,
             onClick: () => {
-              void reveal();
+              if (stored) {
+                void reveal();
+              } else {
+                setShowNewPassword((value) => !value);
+              }
             },
             children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", { width: "18", height: "18", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.7", "aria-hidden": "true", children: [
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" }),
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", { cx: "12", cy: "12", r: "3" }),
-              revealed && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "m3 3 18 18" })
+              passwordVisible && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "m3 3 18 18" })
             ] })
           }
         )
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.hint, children: t("revealHint") })
+      stored && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.hint, children: t("revealHint") })
     ] });
   };
   const input = (key, value, onChange, options) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { style: styles.field, children: [
@@ -650,7 +656,7 @@ function DatabasePage({ sessionId, t, runCommand }) {
   ] });
 }
 
-// ../dsh-db-workspace/client/locales.ts
+// client/locales.ts
 var en = {
   loadFailed: "Could not load connections. Check the connection and retry.",
   noticeFailed: "Saved successfully, but the chat notification could not be delivered.",
@@ -659,6 +665,7 @@ var en = {
   revealTimeout: "Verification timed out. Please retry.",
   revealShown: "Password shown temporarily. It hides after 20 seconds or when you switch windows.",
   hidePassword: "Hide password",
+  showPassword: "Show password",
   dismissAction: "Dismiss notification",
   revealAction: "View password with Windows verification",
   revealHint: "Verify your Windows account password in a local window to view. An account password is required.",
@@ -715,6 +722,7 @@ var zh = {
   revealTimeout: "\u9A8C\u8BC1\u7B49\u5F85\u8D85\u65F6\uFF0C\u8BF7\u91CD\u8BD5\u3002",
   revealShown: "\u5BC6\u7801\u5DF2\u4E34\u65F6\u663E\u793A\uFF0C20 \u79D2\u540E\u6216\u5207\u6362\u7A97\u53E3\u65F6\u81EA\u52A8\u9690\u85CF\u3002",
   hidePassword: "\u9690\u85CF\u5BC6\u7801",
+  showPassword: "\u663E\u793A\u5BC6\u7801",
   dismissAction: "\u5173\u95ED\u63D0\u9192",
   revealAction: "\u9A8C\u8BC1 Windows \u5BC6\u7801\u540E\u67E5\u770B",
   revealHint: "\u5728\u672C\u673A\u7A97\u53E3\u9A8C\u8BC1 Windows \u8D26\u6237\u5BC6\u7801\u540E\u67E5\u770B\uFF1B\u672A\u8BBE\u7F6E\u8D26\u6237\u5BC6\u7801\u65F6\u62D2\u7EDD\u67E5\u770B\u3002",
@@ -764,7 +772,7 @@ var zh = {
   commandFailed: "\u547D\u4EE4\u6267\u884C\u5931\u8D25"
 };
 
-// ../dsh-db-workspace/client/index.tsx
+// client/index.tsx
 var import_jsx_runtime2 = require("react/jsx-runtime");
 var inject = ["slots", "locale", "sidebarRightTabs", "sidebarRight", "uiSession", "layout", "shortcuts", "remote", "remote.commands", "connection"];
 var NS = "db.workspace";

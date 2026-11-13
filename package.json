@@ -22,6 +22,7 @@
     "reveal-crypto.js",
     "reveal-password.ps1",
     "drivers.js",
+    "driver-manager.js",
     "probe.js",
     "query.js",
     "policy.js",

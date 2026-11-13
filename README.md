@@ -41,7 +41,7 @@ The public `cordis.patch.yml` uses the host defaults below. Keep personal config
 | Field | Purpose | Default |
 | --- | --- | --- |
 | `configPath` | Connection JSON file | `DSH_DB_CONFIG_PATH`, then current profile/home (see below) |
-| `driverDirectory` | Directory containing driver `node_modules` | Parent of `configPath` |
+| `driverDirectory` | Directory containing driver `node_modules` | `database-drivers` under the current DSH profile/home |
 | `connectTimeoutMs` | Driver connection timeout, ms | `10000` |
 | `testTimeoutMs` | Connection probe deadline, ms | `15000` |
 
@@ -87,7 +87,7 @@ For an existing connection with an unchanged driver, blank connection-string and
 
 Enabling the plugin registers its own system-prompt section: use db_connections first to resolve aliases, then db_test_connection, db_query, db_schema or the approval-gated db_execute. Tool errors and blocked queries must be reported without automatically falling back to terminal scripts. This is model guidance, not a sandbox restriction on other tools.
 
-Explicit plugin configuration takes precedence. Otherwise configPath uses DSH_DB_CONFIG_PATH, then DSH_PROFILE_DIR/db-config.json, DSH_HOME/db-config.json, and finally ~/.dsh/db-config.json. Drivers use explicit driverDirectory, then DSH_DB_DRIVER_DIRECTORY, then the connection file parent. Existing explicit paths are preserved; nothing is migrated or uploaded. On another device install the plugin in the active profile, install drivers there, add local connections in the panel, and select a default alias. Restart the app to load the tools and policy.
+A driver directory saved from the panel takes precedence over deployment settings. Without a saved selection, explicit plugin configuration takes precedence; other settings keep their existing precedence. Otherwise configPath uses DSH_DB_CONFIG_PATH, then DSH_PROFILE_DIR/db-config.json, DSH_HOME/db-config.json, and finally ~/.dsh/db-config.json. Drivers use explicit driverDirectory, then DSH_DB_DRIVER_DIRECTORY, then database-drivers under the current DSH profile/home. Existing explicit paths are preserved; nothing is migrated or uploaded. On another device install the plugin in the active profile, install drivers there, add local connections in the panel, and select a default alias. Restart the app to load the tools and policy.
 
 queryTimeoutMs defaults to 30000 (1000–480000). db_query accepts env, sql and limit (default 100, maximum 1000). db_schema accepts env, optional table/schema and limit; omit table to list tables, provide it to list columns (not a complete DDL/index export). Schema filters use driver-specific bound parameters. Returned row limits only bound output, not server work: add an appropriate SQL row limit. Operations run in dedicated database processes. Completion, cancellation or timeout terminates the process before the tool returns, closing its sockets. Read-only credentials are recommended because database functions and external effects are not a SQL sandbox. UPDATE_TIME and CREATE_USER are valid field names. Multiple statements, executable comments and unsupported procedural calls are rejected; never bypass a rejection.
 
@@ -158,3 +158,11 @@ npm run verify
 ## Public repository hygiene
 
 The public distribution contains source code and fictional examples only. Never commit real connection files, credentials, backups, or local deployment paths. `.gitignore` excludes common connection-file names, environment files, backups, temporary files, and archives; it cannot detect sensitive values pasted into source or documentation. Review changes before publishing. The package remains `private: true` for npm; GitHub visibility is public.
+
+### Driver detection and download
+
+The driver section starts collapsed; click its title to expand or collapse. Click the driver path to open the system folder picker, choose a folder, and select Save and check to change detection, downloads and subsequent connections immediately. Existing packages are not moved or removed. The selection is persisted beside the connection file in device-local `db-workspace.settings.json`, taking precedence over deployment configuration and environment variables after restart. Do not distribute this settings file.
+
+The installer checks drivers without downloading. The panel shows the directory and missing packages. Confirm download installs the selected driver and dependencies from npm without sending database credentials. Node.js with npm and network access are required. Installation has a three-minute deadline and disables lifecycle scripts. Special modes requiring native clients still need separate configuration. Recheck and retry after failure.
+
+Drivers default to database-drivers under the active DSH profile/home independently of the connection file. Explicit configPath and driverDirectory remain authoritative; remove or update old device paths on a new device. Connections are never automatically migrated or overwritten.

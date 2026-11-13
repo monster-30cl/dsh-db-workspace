@@ -2,6 +2,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { apply, parseConfigCommand, resolveConfig, USAGE } from '../index.js'
 import { redactSecrets } from '../probe.js'
 import { makeDriverDirectory, writeConfig } from './helpers.mjs'
@@ -58,9 +60,10 @@ test('no unapproved generic write tool is registered', () => {
   assert.equal(/^db_write$/u.test(names), false)
 })
 
-test('defaults resolve to the DSH home and the connection file directory', () => {
+test('drivers follow the DSH profile independently of a legacy connection file', () => {
   const resolved = resolveConfig({ configPath: 'F:/x/db-config.json' })
-  assert.equal(resolved.driverDirectory, 'F:\\x')
+  assert.equal(resolved.driverDirectory, resolve(process.env.DSH_DB_DRIVER_DIRECTORY || join(process.env.DSH_PROFILE_DIR || process.env.DSH_HOME || join(homedir(), '.dsh'), 'database-drivers')))
+  assert.equal(resolveConfig({ driverDirectory: 'F:/custom/drivers' }).driverDirectory, resolve('F:/custom/drivers'))
   assert.equal(resolved.testTimeoutMs, 15_000)
   assert.throws(() => resolveConfig({ configPath: '' }), /configPath 必须是非空字符串/u)
   assert.throws(() => resolveConfig({ testTimeoutMs: 0 }), /testTimeoutMs 必须是/u)

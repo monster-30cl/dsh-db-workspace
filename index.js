@@ -11,7 +11,8 @@ import { randomUUID } from 'node:crypto'
  */
 
 import { homedir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
+import { checkDrivers, installDriver, loadDriverDirectory, saveDriverDirectory } from './driver-manager.js'
 import { describeEnvs, loadConfig, resolveEntry } from './config.js'
 import { revealPassword } from './reveal.js'
 import { runDatabase } from './database-process.js'
@@ -83,7 +84,7 @@ export function resolveConfig(raw) {
   const configPath = resolve(stringField(config, 'configPath', process.env.DSH_DB_CONFIG_PATH || join(localHome, 'db-config.json')))
   return {
     configPath,
-    driverDirectory: resolve(stringField(config, 'driverDirectory', process.env.DSH_DB_DRIVER_DIRECTORY || dirname(configPath))),
+    driverDirectory: loadDriverDirectory(configPath, resolve(stringField(config, 'driverDirectory', process.env.DSH_DB_DRIVER_DIRECTORY || join(localHome, 'database-drivers')))),
     queryTimeoutMs: integerField(config, 'queryTimeoutMs', 30_000, 1_000, 480_000),
     connectionMaxLifetimeMs: integerField(config, 'connectionMaxLifetimeMs', 480_000, 1_000, 480_000),
     connectTimeoutMs: integerField(config, 'connectTimeoutMs', DEFAULTS.connectTimeoutMs, 1_000, 600_000),
@@ -157,6 +158,8 @@ export function apply(ctx, rawConfig) {
 
   // Panel operations use Connection's authenticated channel, without command lifecycle events.
   const notices = new Map()
+  const driverConsents = new Map()
+  let installingDriver = false
   const handleCommand = async (invocation) => {
     let request
     try {
@@ -209,6 +212,34 @@ export function apply(ctx, rawConfig) {
     try {
       if (signal.aborted) throw new Error('数据库面板操作已取消')
       if (endpoint !== 'panel' || !payload || typeof payload.command !== 'string' || typeof payload.sessionId !== 'string' || !payload.sessionId) throw new Error('无效的数据库面板请求')
+      if (payload.command.startsWith('/db-config drivers-directory ')) {
+        if (installingDriver) throw new Error('驱动安装中，请完成后再更改目录')
+        const { directory } = JSON.parse(payload.command.slice('/db-config drivers-directory '.length))
+        const target = saveDriverDirectory(config.configPath, directory)
+        config.driverDirectory = target
+        driverOptions.driverDirectory = target
+        driverConsents.clear()
+        return { ok: true, value: { text: JSON.stringify({ drivers: checkDrivers(target), driverDirectory: target }) } }
+      }
+      if (payload.command === '/db-config drivers-check') {
+        for (const [key, value] of driverConsents) if (value.expires < Date.now()) driverConsents.delete(key)
+        if (driverConsents.size >= 1000) driverConsents.delete(driverConsents.keys().next().value)
+        const token = randomUUID()
+        driverConsents.set(token, { sessionId: payload.sessionId, expires: Date.now() + 600000 })
+        return { ok: true, value: { text: JSON.stringify({ drivers: checkDrivers(config.driverDirectory), driverDirectory: config.driverDirectory, installToken: token }) } }
+      }
+      if (payload.command.startsWith('/db-config drivers-install ')) {
+        const { driver, token } = JSON.parse(payload.command.slice('/db-config drivers-install '.length))
+        const consent = driverConsents.get(token)
+        if (!consent || consent.sessionId !== payload.sessionId || consent.expires < Date.now()) throw new Error('安装确认已失效，请重新检测驱动')
+        if (installingDriver) throw new Error('驱动正在安装，请稍候再试')
+        driverConsents.delete(token)
+        installingDriver = true
+        try {
+          const drivers = await installDriver(config.driverDirectory, driver, signal)
+          return { ok: true, value: { text: JSON.stringify({ drivers, driverDirectory: config.driverDirectory }) } }
+        } finally { installingDriver = false }
+      }
       const match = /^\/db-config\s+([a-z-]+)(?:\s|$)/u.exec(payload.command)
       if (!match || !['list', 'test', 'test-draft', 'save', 'delete', 'default', 'reveal'].includes(match[1])) throw new Error('不支持的数据库面板操作')
       const rawInput = payload.command.replace(/^\/db-config\s+/u, '')
@@ -246,6 +277,7 @@ export function apply(ctx, rawConfig) {
   const disposers = [
     disposePanel,
     () => notices.clear(),
+    () => driverConsents.clear(),
     ctx.systemPrompt.section({ name: 'db-workspace:database-policy', order: 500, text: DATABASE_POLICY }),
     ctx.tools.register({
       name: 'db_connections',

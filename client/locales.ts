@@ -1,5 +1,10 @@
 /** Localized copy owned by the database workspace plugin. */
 export type DatabaseLocaleKey =
+  | 'driverChecked'
+  | 'driverHostRestartRequired'
+  | 'driverDirectoryPick' | 'driverDirectoryPicking' | 'driverDirectoryPickFailed'
+  | 'driverDirectoryLabel' | 'driverDirectorySave' | 'driverDirectoryHint' | 'driverDirectorySaved'
+  | 'driversTitle' | 'driverCheck' | 'driverDownloadHint' | 'driverMissing' | 'driverReady' | 'driverDownload' | 'driverInstalling' | 'driverInstalled'
   | 'loadFailed'
   | 'noticeFailed'
   | 'collapseAction'
@@ -57,6 +62,18 @@ export type DatabaseLocaleKey =
   | 'commandFailed'
 
 export const en: Record<DatabaseLocaleKey, string> = {
+  driverChecked: 'Driver check complete.',
+  driverHostRestartRequired: 'The DSH backend has not loaded the driver-directory update. Fully quit and restart DSH, then retry. Refreshing this panel alone does not update the backend.',
+  driverDirectoryPick: 'Choose driver folder', driverDirectoryPicking: 'Choose a folder in the system dialog…',
+  driverDirectoryPickFailed: 'Could not open the system folder picker. Check that DSH native directory selection is available.',
+  driverDirectoryLabel: 'Driver directory', driverDirectorySave: 'Save and check',
+  driverDirectoryHint: 'Click the path to choose a folder, then use the top-right button to save and check. With no directory change, the same button checks again. The saved directory applies to downloads and subsequent connections after restart. Existing packages are not moved.',
+  driverDirectorySaved: 'Driver directory saved and checked.',
+  driversTitle: 'Database drivers',
+  driverCheck: 'Check drivers',
+  driverDownloadHint: 'Download only the drivers you need. Confirm to install packages and dependencies from npm into the directory above (up to 3 minutes). Requires Node.js with npm and internet access. No database credentials are sent.',
+  driverMissing: 'Not installed', driverReady: 'Available', driverDownload: 'Confirm download',
+  driverInstalling: 'Downloading and installing…', driverInstalled: 'Driver installed. You can test the connection now.',
   loadFailed: 'Could not load connections. Check the connection and retry.',
   noticeFailed: 'Saved successfully, but the chat notification could not be delivered.',
   collapseAction: 'Collapse',
@@ -115,6 +132,18 @@ export const en: Record<DatabaseLocaleKey, string> = {
 }
 
 export const zh: Record<DatabaseLocaleKey, string> = {
+  driverChecked: '驱动检测完成。',
+  driverHostRestartRequired: 'DSH 后端尚未加载驱动目录修改功能。请完全退出并重新启动 DSH 后重试，仅刷新面板不会更新后端。',
+  driverDirectoryPick: '选择驱动文件夹', driverDirectoryPicking: '请在系统窗口中选择文件夹…',
+  driverDirectoryPickFailed: '无法打开系统文件夹选择窗口，请检查 DSH 是否支持本机目录选择。',
+  driverDirectoryLabel: '驱动目录', driverDirectorySave: '保存并检测',
+  driverDirectoryHint: '点击路径选择文件夹，再点击右上角按钮保存并检测；目录未变化时，同一按钮用于重新检测。保存后的目录用于下载及后续连接，重启后保留；不会移动原驱动。',
+  driverDirectorySaved: '驱动目录已保存，已重新检测。',
+  driversTitle: '数据库驱动',
+  driverCheck: '重新检测',
+  driverDownloadHint: '按需下载即可。点击确认后，从 npm 下载驱动及依赖到上述目录（最长 3 分钟）。需要带 npm 的 Node.js 和网络，不会发送数据库凭据。',
+  driverMissing: '未安装', driverReady: '已就绪', driverDownload: '确认下载',
+  driverInstalling: '正在下载安装…', driverInstalled: '驱动已安装，可以测试数据库连接。',
   loadFailed: '连接列表加载失败，请检查连接后刷新重试。',
   noticeFailed: '连接已保存，但工作区完成提示发送失败。',
   collapseAction: '收起',

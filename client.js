@@ -411,7 +411,7 @@ function ConnectionEditor({ connection, embedded = false, visible, sessionId, bu
     ] })
   ] });
 }
-function DatabasePage({ sessionId, t, runCommand }) {
+function DatabasePage({ sessionId, t, runCommand, pickDriverDirectory }) {
   const [connections, setConnections] = (0, import_react.useState)([]);
   const [defaultAlias, setDefaultAlias] = (0, import_react.useState)("");
   const [editors, setEditors] = (0, import_react.useState)(() => /* @__PURE__ */ new Set());
@@ -422,6 +422,16 @@ function DatabasePage({ sessionId, t, runCommand }) {
   const [tone, setTone] = (0, import_react.useState)("info");
   const [search, setSearch] = (0, import_react.useState)("");
   const [deleteName, setDeleteName] = (0, import_react.useState)(null);
+  const [driverInfo, setDriverInfo] = (0, import_react.useState)();
+  const [installingDriver, setInstallingDriver] = (0, import_react.useState)("");
+  const [driversExpanded, setDriversExpanded] = (0, import_react.useState)(false);
+  const [driverDirectoryDraft, setDriverDirectoryDraft] = (0, import_react.useState)("");
+  const [savingDirectory, setSavingDirectory] = (0, import_react.useState)(false);
+  const [pickingDirectory, setPickingDirectory] = (0, import_react.useState)(false);
+  const pickingDirectoryRef = (0, import_react.useRef)(false);
+  (0, import_react.useEffect)(() => {
+    setDriverDirectoryDraft(driverInfo?.driverDirectory ?? "");
+  }, [driverInfo?.driverDirectory]);
   const [listState, setListState] = (0, import_react.useState)("loading");
   const orderedConnections = [...connections].sort((left, right) => Number(defaultAlias ? right.name === defaultAlias : right.isDefault) - Number(defaultAlias ? left.name === defaultAlias : left.isDefault));
   const visibleConnections = orderedConnections.filter((item) => [item.name, item.driver, item.host, item.database, item.user].join(" ").toLowerCase().includes(search.trim().toLowerCase()));
@@ -458,15 +468,84 @@ function DatabasePage({ sessionId, t, runCommand }) {
   (0, import_react.useEffect)(() => {
     refresh();
   }, [refresh]);
+  const checkDriverStatus = (0, import_react.useCallback)(async () => {
+    const value = await invoke("/db-config drivers-check");
+    if (!Array.isArray(value?.drivers)) throw new Error(t("commandFailed"));
+    setDriverInfo(value);
+    return value;
+  }, [invoke, t]);
   (0, import_react.useEffect)(() => {
-    if (status === "" || busy || tone === "error") return;
+    let active = true;
+    setDriverInfo(void 0);
+    void invoke("/db-config drivers-check").then((value) => {
+      if (active && Array.isArray(value?.drivers)) setDriverInfo(value);
+    }).catch((cause) => {
+      if (active) fail(cause);
+    });
+    return () => {
+      active = false;
+    };
+  }, [invoke]);
+  const downloadDriver = async (driver) => {
+    setInstallingDriver(driver);
+    setTone("info");
+    setStatus(t("driverInstalling"));
+    try {
+      const current = await checkDriverStatus();
+      const value = await invoke(`/db-config drivers-install ${JSON.stringify({ driver, token: current.installToken })}`);
+      if (!Array.isArray(value?.drivers)) throw new Error(t("commandFailed"));
+      setDriverInfo(value);
+      setTone("success");
+      setStatus(t("driverInstalled"));
+    } catch (cause) {
+      fail(cause);
+    } finally {
+      setInstallingDriver("");
+    }
+  };
+  const checkDirectory = async () => {
+    setSavingDirectory(true);
+    try {
+      if (!driverInfo || driverDirectoryDraft.trim() === driverInfo.driverDirectory) {
+        await checkDriverStatus();
+        setTone("success");
+        setStatus(t("driverChecked"));
+        return;
+      }
+      const value = await invoke(`/db-config drivers-directory ${JSON.stringify({ directory: driverDirectoryDraft })}`);
+      if (!Array.isArray(value?.drivers)) throw new Error(t("commandFailed"));
+      setDriverInfo(value);
+      setTone("success");
+      setStatus(t("driverDirectorySaved"));
+    } catch (cause) {
+      fail(cause instanceof Error && cause.message.includes("\u4E0D\u652F\u6301\u7684\u6570\u636E\u5E93\u9762\u677F\u64CD\u4F5C") ? new Error(t("driverHostRestartRequired")) : cause);
+    } finally {
+      setSavingDirectory(false);
+    }
+  };
+  const chooseDirectory = async () => {
+    if (pickingDirectoryRef.current) return;
+    pickingDirectoryRef.current = true;
+    setPickingDirectory(true);
+    try {
+      const directory = await pickDriverDirectory();
+      if (directory !== null) setDriverDirectoryDraft(directory);
+    } catch {
+      fail(new Error(t("driverDirectoryPickFailed")));
+    } finally {
+      pickingDirectoryRef.current = false;
+      setPickingDirectory(false);
+    }
+  };
+  (0, import_react.useEffect)(() => {
+    if (status === "" || busy || installingDriver || tone === "error") return;
     const timer = window.setTimeout(() => {
       setStatus("");
     }, 6e3);
     return () => {
       window.clearTimeout(timer);
     };
-  }, [status, busy, tone]);
+  }, [status, busy, installingDriver, tone]);
   const mutate = (command, done, after) => {
     setBusy(true);
     setTone("info");
@@ -548,6 +627,84 @@ function DatabasePage({ sessionId, t, runCommand }) {
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", { style: styles.header, children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", { style: styles.title, children: t("title") }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.hint, children: t("description") })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { style: styles.row, "aria-label": t("driversTitle"), children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.sectionHead, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+          "button",
+          {
+            type: "button",
+            style: { ...styles.button, fontWeight: 600 },
+            "aria-expanded": driversExpanded,
+            "aria-controls": "db-driver-details",
+            onClick: () => {
+              setDriversExpanded((value) => !value);
+            },
+            children: [
+              driversExpanded ? "\u25BE" : "\u25B8",
+              " ",
+              t("driversTitle")
+            ]
+          }
+        ),
+        driverInfo?.drivers && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: styles.hint, children: [
+          t("driverMissing"),
+          ": ",
+          driverInfo.drivers.filter((row) => row.missing.length > 0).length
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          "button",
+          {
+            type: "button",
+            style: styles.button,
+            disabled: !!installingDriver || savingDirectory || pickingDirectory,
+            onClick: () => {
+              void checkDirectory();
+            },
+            children: savingDirectory ? t("loading") : t(driverInfo && driverDirectoryDraft.trim() !== driverInfo.driverDirectory ? "driverDirectorySave" : "driverCheck")
+          }
+        )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { id: "db-driver-details", hidden: !driversExpanded, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", flexDirection: "column", gap: 12 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { style: styles.field, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: styles.label, children: t("driverDirectoryLabel") }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "button",
+            {
+              type: "button",
+              style: { ...styles.input, textAlign: "left", overflowWrap: "anywhere", cursor: "pointer" },
+              title: t("driverDirectoryPick"),
+              "aria-label": t("driverDirectoryPick"),
+              disabled: !!installingDriver || savingDirectory || pickingDirectory || !driverInfo,
+              onClick: () => {
+                void chooseDirectory();
+              },
+              children: pickingDirectory ? t("driverDirectoryPicking") : driverDirectoryDraft || t("driverDirectoryPick")
+            }
+          )
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.hint, children: t("driverDirectoryHint") }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.hint, children: t("driverDownloadHint") }),
+        driverInfo?.drivers?.map((row) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.sectionHead, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+            row.driver,
+            " ",
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: styles.badge, children: t(row.missing.length ? "driverMissing" : "driverReady") })
+          ] }),
+          row.missing.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "button",
+            {
+              type: "button",
+              style: styles.button,
+              disabled: !!installingDriver || savingDirectory || pickingDirectory || driverDirectoryDraft.trim() !== driverInfo.driverDirectory,
+              onClick: () => {
+                void downloadDriver(row.driver);
+              },
+              children: installingDriver === row.driver ? t("driverInstalling") : `${t("driverDownload")}: ${row.missing.join(", ")}`
+            }
+          )
+        ] }, row.driver))
+      ] }) })
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.sectionHead, children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("h3", { style: styles.sectionTitle, children: [
@@ -658,6 +815,23 @@ function DatabasePage({ sessionId, t, runCommand }) {
 
 // client/locales.ts
 var en = {
+  driverChecked: "Driver check complete.",
+  driverHostRestartRequired: "The DSH backend has not loaded the driver-directory update. Fully quit and restart DSH, then retry. Refreshing this panel alone does not update the backend.",
+  driverDirectoryPick: "Choose driver folder",
+  driverDirectoryPicking: "Choose a folder in the system dialog\u2026",
+  driverDirectoryPickFailed: "Could not open the system folder picker. Check that DSH native directory selection is available.",
+  driverDirectoryLabel: "Driver directory",
+  driverDirectorySave: "Save and check",
+  driverDirectoryHint: "Click the path to choose a folder, then use the top-right button to save and check. With no directory change, the same button checks again. The saved directory applies to downloads and subsequent connections after restart. Existing packages are not moved.",
+  driverDirectorySaved: "Driver directory saved and checked.",
+  driversTitle: "Database drivers",
+  driverCheck: "Check drivers",
+  driverDownloadHint: "Download only the drivers you need. Confirm to install packages and dependencies from npm into the directory above (up to 3 minutes). Requires Node.js with npm and internet access. No database credentials are sent.",
+  driverMissing: "Not installed",
+  driverReady: "Available",
+  driverDownload: "Confirm download",
+  driverInstalling: "Downloading and installing\u2026",
+  driverInstalled: "Driver installed. You can test the connection now.",
   loadFailed: "Could not load connections. Check the connection and retry.",
   noticeFailed: "Saved successfully, but the chat notification could not be delivered.",
   collapseAction: "Collapse",
@@ -715,6 +889,23 @@ var en = {
   commandFailed: "Command failed"
 };
 var zh = {
+  driverChecked: "\u9A71\u52A8\u68C0\u6D4B\u5B8C\u6210\u3002",
+  driverHostRestartRequired: "DSH \u540E\u7AEF\u5C1A\u672A\u52A0\u8F7D\u9A71\u52A8\u76EE\u5F55\u4FEE\u6539\u529F\u80FD\u3002\u8BF7\u5B8C\u5168\u9000\u51FA\u5E76\u91CD\u65B0\u542F\u52A8 DSH \u540E\u91CD\u8BD5\uFF0C\u4EC5\u5237\u65B0\u9762\u677F\u4E0D\u4F1A\u66F4\u65B0\u540E\u7AEF\u3002",
+  driverDirectoryPick: "\u9009\u62E9\u9A71\u52A8\u6587\u4EF6\u5939",
+  driverDirectoryPicking: "\u8BF7\u5728\u7CFB\u7EDF\u7A97\u53E3\u4E2D\u9009\u62E9\u6587\u4EF6\u5939\u2026",
+  driverDirectoryPickFailed: "\u65E0\u6CD5\u6253\u5F00\u7CFB\u7EDF\u6587\u4EF6\u5939\u9009\u62E9\u7A97\u53E3\uFF0C\u8BF7\u68C0\u67E5 DSH \u662F\u5426\u652F\u6301\u672C\u673A\u76EE\u5F55\u9009\u62E9\u3002",
+  driverDirectoryLabel: "\u9A71\u52A8\u76EE\u5F55",
+  driverDirectorySave: "\u4FDD\u5B58\u5E76\u68C0\u6D4B",
+  driverDirectoryHint: "\u70B9\u51FB\u8DEF\u5F84\u9009\u62E9\u6587\u4EF6\u5939\uFF0C\u518D\u70B9\u51FB\u53F3\u4E0A\u89D2\u6309\u94AE\u4FDD\u5B58\u5E76\u68C0\u6D4B\uFF1B\u76EE\u5F55\u672A\u53D8\u5316\u65F6\uFF0C\u540C\u4E00\u6309\u94AE\u7528\u4E8E\u91CD\u65B0\u68C0\u6D4B\u3002\u4FDD\u5B58\u540E\u7684\u76EE\u5F55\u7528\u4E8E\u4E0B\u8F7D\u53CA\u540E\u7EED\u8FDE\u63A5\uFF0C\u91CD\u542F\u540E\u4FDD\u7559\uFF1B\u4E0D\u4F1A\u79FB\u52A8\u539F\u9A71\u52A8\u3002",
+  driverDirectorySaved: "\u9A71\u52A8\u76EE\u5F55\u5DF2\u4FDD\u5B58\uFF0C\u5DF2\u91CD\u65B0\u68C0\u6D4B\u3002",
+  driversTitle: "\u6570\u636E\u5E93\u9A71\u52A8",
+  driverCheck: "\u91CD\u65B0\u68C0\u6D4B",
+  driverDownloadHint: "\u6309\u9700\u4E0B\u8F7D\u5373\u53EF\u3002\u70B9\u51FB\u786E\u8BA4\u540E\uFF0C\u4ECE npm \u4E0B\u8F7D\u9A71\u52A8\u53CA\u4F9D\u8D56\u5230\u4E0A\u8FF0\u76EE\u5F55\uFF08\u6700\u957F 3 \u5206\u949F\uFF09\u3002\u9700\u8981\u5E26 npm \u7684 Node.js \u548C\u7F51\u7EDC\uFF0C\u4E0D\u4F1A\u53D1\u9001\u6570\u636E\u5E93\u51ED\u636E\u3002",
+  driverMissing: "\u672A\u5B89\u88C5",
+  driverReady: "\u5DF2\u5C31\u7EEA",
+  driverDownload: "\u786E\u8BA4\u4E0B\u8F7D",
+  driverInstalling: "\u6B63\u5728\u4E0B\u8F7D\u5B89\u88C5\u2026",
+  driverInstalled: "\u9A71\u52A8\u5DF2\u5B89\u88C5\uFF0C\u53EF\u4EE5\u6D4B\u8BD5\u6570\u636E\u5E93\u8FDE\u63A5\u3002",
   loadFailed: "\u8FDE\u63A5\u5217\u8868\u52A0\u8F7D\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u8FDE\u63A5\u540E\u5237\u65B0\u91CD\u8BD5\u3002",
   noticeFailed: "\u8FDE\u63A5\u5DF2\u4FDD\u5B58\uFF0C\u4F46\u5DE5\u4F5C\u533A\u5B8C\u6210\u63D0\u793A\u53D1\u9001\u5931\u8D25\u3002",
   collapseAction: "\u6536\u8D77",
@@ -774,7 +965,7 @@ var zh = {
 
 // client/index.tsx
 var import_jsx_runtime2 = require("react/jsx-runtime");
-var inject = ["slots", "locale", "sidebarRightTabs", "sidebarRight", "uiSession", "layout", "shortcuts", "remote", "remote.commands", "connection"];
+var inject = ["slots", "locale", "sidebarRightTabs", "sidebarRight", "uiSession", "layout", "shortcuts", "remote", "remote.commands", "remote.directoryPicker", "connection"];
 var NS = "db.workspace";
 var DB_PANE_ID = "@local/dsh-db-workspace/page";
 var DB_PANE_KIND = "dbWorkspace";
@@ -838,6 +1029,11 @@ function apply(ctx) {
     key: DB_PANE_ID,
     locale: NS,
     inject: () => ({
+      pickDriverDirectory: async () => {
+        const result = await ctx.remote.directoryPicker.pick();
+        if (!result.ok) throw new Error(t("driverDirectoryPickFailed"));
+        return result.value;
+      },
       runCommand: async (sessionId, command) => {
         const result = await ctx.connection.rpc.call("/api", "db-workspace/panel", { sessionId, command });
         if (!result.ok) throw new Error(result.error.message);

@@ -1,6 +1,6 @@
 # Portable defaults. Connection files and driver packages stay on this device.
 # configPath defaults to DSH_DB_CONFIG_PATH or the active profile/home.
-# driverDirectory defaults to DSH_DB_DRIVER_DIRECTORY or configPath's parent.
+# driverDirectory defaults to DSH_DB_DRIVER_DIRECTORY or the active profile/home database-drivers directory.
 - insert:
     - id: db-workspace
       name: '@local/dsh-db-workspace'

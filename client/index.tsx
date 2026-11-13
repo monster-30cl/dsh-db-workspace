@@ -3,7 +3,7 @@
 import { DatabasePage } from './DatabasePage.tsx'
 import { en, zh } from './locales.ts'
 
-export const inject = ['slots', 'locale', 'sidebarRightTabs', 'sidebarRight', 'uiSession', 'layout', 'shortcuts', 'remote', 'remote.commands', 'connection']
+export const inject = ['slots', 'locale', 'sidebarRightTabs', 'sidebarRight', 'uiSession', 'layout', 'shortcuts', 'remote', 'remote.commands', 'remote.directoryPicker', 'connection']
 
 /** Locale namespace owned by this pane. */
 const NS = 'db.workspace'
@@ -80,6 +80,11 @@ export function apply(ctx) {
     key: DB_PANE_ID,
     locale: NS,
     inject: () => ({
+      pickDriverDirectory: async () => {
+        const result = await ctx.remote.directoryPicker.pick()
+        if (!result.ok) throw new Error(t('driverDirectoryPickFailed'))
+        return result.value
+      },
       runCommand: async (sessionId, command) => {
         const result = await ctx.connection.rpc.call('/api', 'db-workspace/panel', { sessionId, command })
         if (!result.ok) throw new Error(result.error.message)

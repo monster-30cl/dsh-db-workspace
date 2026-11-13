@@ -41,7 +41,7 @@ node install.mjs --profile-dir "<profile目录>"
 | 配置项 | 用途 | 默认值 |
 | --- | --- | --- |
 | `configPath` | 数据库连接 JSON 文件 | `DSH_DB_CONFIG_PATH` 或当前 profile/home，见下文 |
-| `driverDirectory` | 包含驱动 `node_modules` 的目录 | `configPath` 的父目录 |
+| `driverDirectory` | 包含驱动 `node_modules` 的目录 | 当前 DSH profile/home 下的 `database-drivers` |
 | `connectTimeoutMs` | 驱动连接超时，毫秒 | `10000` |
 | `testTimeoutMs` | 连通性测试截止时间，毫秒 | `15000` |
 
@@ -87,7 +87,7 @@ node install.mjs --profile-dir "<profile目录>"
 
 启用插件时自动注册系统提示词：先用 db_connections 确认连接别名，再使用 db_test_connection、db_query、db_schema 或需要批准的 db_execute。工具失败或 SQL 被拦截时报告原因，不自动回退到终端脚本。这是模型使用规则，不是限制其他工具的沙箱。
 
-显式插件配置优先。未配置时，configPath 依次使用 DSH_DB_CONFIG_PATH、DSH_PROFILE_DIR/db-config.json、DSH_HOME/db-config.json、~/.dsh/db-config.json；驱动目录依次使用显式 driverDirectory、DSH_DB_DRIVER_DIRECTORY、连接文件父目录。保留已有显式路径，不自动迁移或上传连接。新设备安装插件到当前 profile、在对应目录安装驱动、通过面板新增本机连接并设置默认别名，重启后加载工具和规则。
+驱动目录优先使用面板保存的本机选择；没有保存选择时使用显式插件配置。其他配置仍以显式插件配置优先。未配置时，configPath 依次使用 DSH_DB_CONFIG_PATH、DSH_PROFILE_DIR/db-config.json、DSH_HOME/db-config.json、~/.dsh/db-config.json；驱动目录依次使用显式 driverDirectory、DSH_DB_DRIVER_DIRECTORY、当前 DSH profile/home 下的 database-drivers。保留已有显式路径，不自动迁移或上传连接。新设备安装插件到当前 profile、在对应目录安装驱动、通过面板新增本机连接并设置默认别名，重启后加载工具和规则。
 
 queryTimeoutMs 默认 30000，范围 1000–480000 毫秒。db_query 接受 env、sql、limit（默认 100，最大 1000）；db_schema 接受 env、可选 table/schema 和 limit，不传 table 列出表，传入则列出字段，暂不提供完整 DDL/索引导出。结构过滤使用各驱动的绑定参数。行数限制只约束输出，不约束数据库运算量，请在 SQL 中适当限行。每次操作在独立数据库进程中执行；完成、取消或超时后，在工具返回前结束执行进程，关闭其连接资源。建议使用数据库只读账户：只读事务并非隔离数据库函数外部副作用的沙箱。UPDATE_TIME、CREATE_USER 等字段名不再误拦截；多语句、可执行注释及不支持的过程调用会被拒绝，不得绕过。
 
@@ -160,3 +160,11 @@ npm run verify
 公开发布版只包含源码和虚构示例。不要提交真实连接文件、凭据、配置备份或本机部署路径。`.gitignore` 排除了常见连接文件名、环境文件、备份、临时文件和压缩包，但无法识别粘贴进源码或文档中的敏感值，发布前仍需检查差异。`package.json` 中的 `private: true` 用于阻止 npm 发布，不影响 GitHub 仓库公开访问。
 
 在设置 → 常规 → 编辑快捷键中搜索 “打开数据库工作区”，可自定义打开页面的快捷键。默认未绑定，需要先选中对话。
+
+### 驱动检测与下载
+
+驱动区域默认收起，点击标题可展开或收起。展开后点击驱动路径打开系统文件夹选择窗口，选择文件夹后点击“保存并检测”立即切换检测、下载及后续数据库连接所用目录；不会移动或删除原驱动。选择保存在连接文件旁的本机 `db-workspace.settings.json`，重启后优先于部署行配置和环境变量生效；此文件不应随项目发布。
+
+安装脚本检测驱动，不自行下载。面板顶部展示驱动目录和缺失状态；点击“确认下载”后，从 npm 下载对应驱动及依赖，不发送数据库凭据。需要带 npm 的 Node.js 和网络；最长等待 3 分钟，失败后可重新检测、重试。安装禁用生命周期脚本，需要额外原生客户端的特殊模式仍需单独配置。
+
+新设备驱动目录默认跟随当前 DSH profile/home，与连接文件位置解耦。显式 configPath、driverDirectory 优先保留，不自动迁移或覆盖连接；旧设备的显式路径应在新设备移除或调整。

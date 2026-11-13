@@ -22,6 +22,9 @@ export interface ConnectionView {
 
 /** The connection file listing. */
 export interface ConnectionListing {
+  drivers?: { driver: string, packages: string[], missing: string[] }[]
+  driverDirectory?: string
+  installToken?: string
   notificationWarning?: string
   challenge?: string
   wrappedKey?: string
@@ -51,6 +54,7 @@ interface Draft {
 
 /** Props supplied by the slot, the locale, and this plugin's registration. */
 export interface DatabasePageProps {
+  pickDriverDirectory: () => Promise<string | null>
   sessionId?: string
   t: (key: DatabaseLocaleKey) => string
   runCommand: (sessionId: string, command: string) => Promise<string>
@@ -384,7 +388,7 @@ function ConnectionEditor({ connection, embedded = false, visible, sessionId, bu
  * @param props Slot props plus this plugin's command runner.
  * @returns The database pane.
  */
-export function DatabasePage({ sessionId, t, runCommand }: DatabasePageProps) {
+export function DatabasePage({ sessionId, t, runCommand, pickDriverDirectory }: DatabasePageProps) {
   const [connections, setConnections] = useState<ConnectionView[]>([])
   const [defaultAlias, setDefaultAlias] = useState('')
   const [editors, setEditors] = useState<Set<string>>(() => new Set())
@@ -395,6 +399,14 @@ export function DatabasePage({ sessionId, t, runCommand }: DatabasePageProps) {
   const [tone, setTone] = useState<'info' | 'error' | 'success'>('info')
   const [search, setSearch] = useState('')
   const [deleteName, setDeleteName] = useState<string | null>(null)
+  const [driverInfo, setDriverInfo] = useState<ConnectionListing>()
+  const [installingDriver, setInstallingDriver] = useState('')
+  const [driversExpanded, setDriversExpanded] = useState(false)
+  const [driverDirectoryDraft, setDriverDirectoryDraft] = useState('')
+  const [savingDirectory, setSavingDirectory] = useState(false)
+  const [pickingDirectory, setPickingDirectory] = useState(false)
+  const pickingDirectoryRef = useRef(false)
+  useEffect(() => { setDriverDirectoryDraft(driverInfo?.driverDirectory ?? '') }, [driverInfo?.driverDirectory])
   const [listState, setListState] = useState<'loading' | 'ready' | 'error'>('loading')
   const orderedConnections = [...connections].sort((left, right) =>
     Number(defaultAlias ? right.name === defaultAlias : right.isDefault) - Number(defaultAlias ? left.name === defaultAlias : left.isDefault))
@@ -431,11 +443,66 @@ export function DatabasePage({ sessionId, t, runCommand }: DatabasePageProps) {
 
   useEffect(() => { refresh() }, [refresh])
 
+  const checkDriverStatus = useCallback(async () => {
+    const value = await invoke('/db-config drivers-check')
+    if (!Array.isArray(value?.drivers)) throw new Error(t('commandFailed'))
+    setDriverInfo(value)
+    return value
+  }, [invoke, t])
   useEffect(() => {
-    if (status === '' || busy || tone === 'error') return
+    let active = true
+    setDriverInfo(undefined)
+    void invoke('/db-config drivers-check').then(value => {
+      if (active && Array.isArray(value?.drivers)) setDriverInfo(value)
+    }).catch(cause => { if (active) fail(cause) })
+    return () => { active = false }
+  }, [invoke])
+
+  const downloadDriver = async (driver: string): Promise<void> => {
+    setInstallingDriver(driver); setTone('info'); setStatus(t('driverInstalling'))
+    try {
+      const current = await checkDriverStatus()
+      const value = await invoke(`/db-config drivers-install ${JSON.stringify({ driver, token: current.installToken })}`)
+      if (!Array.isArray(value?.drivers)) throw new Error(t('commandFailed'))
+      setDriverInfo(value); setTone('success'); setStatus(t('driverInstalled'))
+    } catch (cause) { fail(cause) }
+    finally { setInstallingDriver('') }
+  }
+
+  const checkDirectory = async (): Promise<void> => {
+    setSavingDirectory(true)
+    try {
+      if (!driverInfo || driverDirectoryDraft.trim() === driverInfo.driverDirectory) {
+        await checkDriverStatus()
+        setTone('success'); setStatus(t('driverChecked'))
+        return
+      }
+      const value = await invoke(`/db-config drivers-directory ${JSON.stringify({ directory: driverDirectoryDraft })}`)
+      if (!Array.isArray(value?.drivers)) throw new Error(t('commandFailed'))
+      setDriverInfo(value); setTone('success'); setStatus(t('driverDirectorySaved'))
+    } catch (cause) {
+      fail(cause instanceof Error && cause.message.includes('不支持的数据库面板操作')
+        ? new Error(t('driverHostRestartRequired')) : cause)
+    }
+    finally { setSavingDirectory(false) }
+  }
+
+  const chooseDirectory = async (): Promise<void> => {
+    if (pickingDirectoryRef.current) return
+    pickingDirectoryRef.current = true
+    setPickingDirectory(true)
+    try {
+      const directory = await pickDriverDirectory()
+      if (directory !== null) setDriverDirectoryDraft(directory)
+    } catch { fail(new Error(t('driverDirectoryPickFailed'))) }
+    finally { pickingDirectoryRef.current = false; setPickingDirectory(false) }
+  }
+
+  useEffect(() => {
+    if (status === '' || busy || installingDriver || tone === 'error') return
     const timer = window.setTimeout(() => { setStatus('') }, 6000)
     return () => { window.clearTimeout(timer) }
-  }, [status, busy, tone])
+  }, [status, busy, installingDriver, tone])
 
   const mutate = (command: string, done: string, after?: () => void): void => {
     setBusy(true)
@@ -483,6 +550,34 @@ export function DatabasePage({ sessionId, t, runCommand }: DatabasePageProps) {
       <h2 style={styles.title}>{t('title')}</h2>
       <p style={styles.hint}>{t('description')}</p>
     </header>
+
+    <section style={styles.row} aria-label={t('driversTitle')}>
+      <div style={styles.sectionHead}>
+        <button type="button" style={{ ...styles.button, fontWeight: 600 }} aria-expanded={driversExpanded} aria-controls="db-driver-details"
+          onClick={() => { setDriversExpanded(value => !value) }}>{driversExpanded ? '▾' : '▸'} {t('driversTitle')}</button>
+        {driverInfo?.drivers && <span style={styles.hint}>{t('driverMissing')}: {driverInfo.drivers.filter(row => row.missing.length > 0).length}</span>}
+        <button type="button" style={styles.button} disabled={!!installingDriver || savingDirectory || pickingDirectory}
+          onClick={() => { void checkDirectory() }}>{savingDirectory ? t('loading') : t(driverInfo && driverDirectoryDraft.trim() !== driverInfo.driverDirectory ? 'driverDirectorySave' : 'driverCheck')}</button>
+      </div>
+      <div id="db-driver-details" hidden={!driversExpanded}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <label style={styles.field}>
+        <span style={styles.label}>{t('driverDirectoryLabel')}</span>
+        <button type="button" style={{ ...styles.input, textAlign: 'left', overflowWrap: 'anywhere', cursor: 'pointer' }}
+          title={t('driverDirectoryPick')} aria-label={t('driverDirectoryPick')}
+          disabled={!!installingDriver || savingDirectory || pickingDirectory || !driverInfo}
+          onClick={() => { void chooseDirectory() }}>{pickingDirectory ? t('driverDirectoryPicking') : driverDirectoryDraft || t('driverDirectoryPick')}</button>
+      </label>
+      <p style={styles.hint}>{t('driverDirectoryHint')}</p>
+      <p style={styles.hint}>{t('driverDownloadHint')}</p>
+      {driverInfo?.drivers?.map(row => <div key={row.driver} style={styles.sectionHead}>
+        <span>{row.driver} <span style={styles.badge}>{t(row.missing.length ? 'driverMissing' : 'driverReady')}</span></span>
+        {row.missing.length > 0 && <button type="button" style={styles.button} disabled={!!installingDriver || savingDirectory || pickingDirectory || driverDirectoryDraft.trim() !== driverInfo.driverDirectory}
+          onClick={() => { void downloadDriver(row.driver) }}>{installingDriver === row.driver ? t('driverInstalling') : `${t('driverDownload')}: ${row.missing.join(', ')}`}</button>}
+      </div>)}
+      </div>
+      </div>
+    </section>
 
     <div style={styles.sectionHead}>
       <h3 style={styles.sectionTitle}>{t('connectionsTitle')} <span style={styles.badge}>{listState !== 'ready' && connections.length === 0 ? '—' : connections.length}</span></h3>

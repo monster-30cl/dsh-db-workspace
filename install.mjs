@@ -13,6 +13,7 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { checkDrivers, findNpm } from './driver-manager.js'
 
 const PACKAGE = '@local/dsh-db-workspace'
 const directory = dirname(fileURLToPath(import.meta.url))
@@ -76,3 +77,25 @@ if (changed.length === 0 && !linkMissing) {
   console.log(`INSTALLED ${scope}: ${[...changed, ...(linkMissing ? ['node_modules link'] : [])].join(', ')}`)
 }
 console.log(`重启 DSH 后生效；行配置在 ${join(directory, 'cordis.patch.yml')}`)
+// Existing explicit deployment paths remain authoritative, just as at runtime.
+const { resolveConfig } = await import('./index.js')
+const patch = readFileSync(join(directory, 'cordis.patch.yml'), 'utf8')
+const row = {}
+for (const key of ['configPath', 'driverDirectory']) {
+  const value = new RegExp(`^\\s+${key}:\\s*(.+)$`, 'm').exec(patch)?.[1]?.trim()
+  if (value) row[key] = value.replace(/^['"]|['"]$/g, '')
+}
+const previousProfile = process.env.DSH_PROFILE_DIR
+process.env.DSH_PROFILE_DIR = profileDir
+try {
+  const config = resolveConfig(row)
+  console.log(`驱动目录：${config.driverDirectory}`)
+  try { findNpm(); console.log('npm: 已就绪') } catch (cause) { console.log(cause.message) }
+  for (const item of checkDrivers(config.driverDirectory)) {
+    console.log(`${item.driver}: ${item.missing.length ? '缺少 ' + item.missing.join(', ') : '已就绪'}`)
+  }
+  console.log('缺少驱动时，打开数据库面板顶部的“数据库驱动”，点击“确认下载”自动安装。')
+} finally {
+  if (previousProfile === undefined) delete process.env.DSH_PROFILE_DIR
+  else process.env.DSH_PROFILE_DIR = previousProfile
+}

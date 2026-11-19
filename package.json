@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-db-workspace",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "数据库连接工作区：在 DSH 内配置 db-config.json 的连接并测试连通性",
   "private": true,
   "type": "module",
@@ -37,6 +37,7 @@
     "install.mjs",
     "README.md",
     "README.zh.md",
+    "README_EN.md",
     "verify.mjs",
     "sql-policy.js",
     "approval.js",
